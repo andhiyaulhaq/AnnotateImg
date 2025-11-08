@@ -22,10 +22,10 @@ The application will be designed using a modular approach to separate concerns, 
         *   A **Toolbar** for quick access to annotation tools like "Select" and "Draw Bounding Box".
     *   **Image List View (Sidebar):** A dockable widget, typically on the left, that lists all the image files (e.g., `.jpg`, `.png`) found in the currently opened folder. Clicking an image in this list will open it for annotation.
     *   **Image View:** The central widget, implemented as a `QScrollArea`. It contains a `QLabel` which displays the image and handles mouse events (`mousePressEvent`, `mouseMoveEvent`, `mouseReleaseEvent`) for drawing annotations. The image is scaled to fit the viewport by default, maintaining its aspect ratio.
-    *   **Annotation View (Table):** A dockable widget that displays annotation data. The table will include the following columns:
-        *   `File Path`: The path to the image file containing the annotation.
-        *   `XYWH Normalized`: The bounding box coordinates `(x_center, y_center, width, height)`, normalized to be between 0 and 1.
-        *   `x_center`, `y_center`, `width`, `height`: The individual normalized coordinate components in separate columns for easy viewing and editing.
+    *   **Annotation View (Table):** A dockable widget that displays annotation data. The table includes the following columns:
+        *   `ID`: The unique identifier of the annotation.
+        *   `Label`: The label of the annotation (e.g., "bbox").
+        *   `Points`: The coordinates of the annotation's points.
     *   Handles user input events, such as mouse clicks and drags on the `ImageView` for drawing, and signals from other widgets like the toolbar or image list.
 
 2.  **Image Processing & Annotation Layer:**
@@ -83,16 +83,32 @@ The application will be designed using a modular approach to separate concerns, 
 7.  The handler retrieves the full path of the selected image.
 8.  The image path is passed to a function in the `image.processing` module to load the image using OpenCV.
 9.  The loaded image (as a NumPy array) is converted to a `QPixmap` and displayed in the `image_view.py` widget.
-10. The Data Management Layer is then called to query the SQLite database for any existing annotations for that image, which are subsequently loaded and drawn on the image.
+10. The Data Management Layer is then called to query the SQLite database for any existing annotations for that image, which are subsequently loaded and drawn on the image. The `annotation_view` is also updated with the annotations.
 
 ## Workflow Example: Drawing a Bounding Box
 
 1.  A `QToolBar` is added to the `main_window.py`, containing a `QAction` for "Draw Bounding Box".
-2.  The user clicks the "Draw Bounding Box" action. This sets a state in the application (e.g., `current_tool = 'bounding_box'`).
-3.  The `image_view.py` (specifically the `QLabel` inside it) will have mouse event handlers (`mousePressEvent`, `mouseMoveEvent`, `mouseReleaseEvent`).
+2.  The user clicks the "Draw Bounding Box" action. This sets a state in the application (e.g., `current_tool = 'bbox'`).
+3.  The `image_view.py` (specifically the `QLabel` inside it) has mouse event handlers (`mousePressEvent`, `mouseMoveEvent`, `mouseReleaseEvent`).
 4.  When the user presses the mouse button on the image, `mousePressEvent` is triggered. It records the starting coordinates of the bounding box.
-5.  As the user drags the mouse, `mouseMoveEvent` is triggered continuously. This event handler will draw a temporary rectangle on the `QPixmap` to provide visual feedback. This is done by creating a copy of the original pixmap and using a `QPainter` to draw on it.
+5.  As the user drags the mouse, `mouseMoveEvent` is triggered continuously. This event handler draws a temporary rectangle on the `QLabel` to provide visual feedback.
 6.  When the user releases the mouse button, `mouseReleaseEvent` is triggered. It records the final coordinates.
-7.  The start and end coordinates are used to define the bounding box. These coordinates are then normalized based on the image dimensions.
-8.  The normalized coordinates are used to create an `Annotation` object, which is then saved to the SQLite database via the `storage.py` module.
-9.  The `annotation_view.py` is updated to display the new annotation.
+7.  The start and end coordinates are used to define the bounding box. The pixel coordinates are stored.
+8.  An `Annotation` object is created with the image_id, a default label, and the points. This object is then saved to the SQLite database via the `storage.py` module.
+9.  The `image_view` emits an `annotation_added` signal, which is connected to the `annotation_view` to update its display with the new annotation.
+
+## Logging and Error Handling
+
+To ensure robustness and maintainability, the application implements comprehensive logging and error handling.
+
+*   **Logging:**
+    *   The application uses Python's built-in `logging` module.
+    *   A central logger is configured in `src/utils/logging.py` to output all activity to the terminal (stdout).
+    *   Log messages are added throughout the application to track user actions (e.g., opening a folder, selecting an image), application events (e.g., application start, window initialization), and the outcome of critical operations (e.g., database transactions, image loading).
+    *   Logs are formatted to include a timestamp, logger name, log level, and the message.
+
+*   **Error Handling:**
+    *   Error handling is implemented using `try...except` blocks to catch potential exceptions at critical points, such as file I/O, database operations, and image processing.
+    *   When an error is caught, it is logged with a detailed message, including the exception information.
+    *   For errors that affect the user experience (e.g., failing to open a folder, failing to load an image), a `QMessageBox` dialog is displayed to provide clear and immediate feedback to the user.
+    *   This strategy prevents the application from crashing unexpectedly and provides valuable diagnostic information for debugging.

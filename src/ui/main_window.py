@@ -2,12 +2,15 @@
 Main application window.
 """
 import os
-from PySide6.QtWidgets import QMainWindow, QDockWidget, QFileDialog, QToolBar
+import logging
+from PySide6.QtWidgets import QMainWindow, QDockWidget, QFileDialog, QToolBar, QMessageBox
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from .image_view import ImageView
 from .image_list_view import ImageListView
 from .annotation_view import AnnotationView
+
+logger = logging.getLogger(__name__)
 
 class MainWindow(QMainWindow):
     """
@@ -36,6 +39,9 @@ class MainWindow(QMainWindow):
         self.annotation_dock.setWidget(self.annotation_view)
         self.addDockWidget(Qt.RightDockWidgetArea, self.annotation_dock)
 
+        # Connect signals
+        self.image_view.annotation_added.connect(self.on_annotation_added)
+
         # Menu Bar
         self.menu_bar = self.menuBar()
         self.file_menu = self.menu_bar.addMenu("File")
@@ -51,23 +57,42 @@ class MainWindow(QMainWindow):
         self.draw_bbox_action.setCheckable(True)
         self.draw_bbox_action.triggered.connect(self.set_draw_bbox_tool)
         self.toolbar.addAction(self.draw_bbox_action)
+        
+        logger.info("Main window initialized.")
 
     def open_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Open Folder")
         if folder_path:
-            self.current_folder = folder_path
-            self.image_list_view.clear()
-            image_files = [f for f in os.listdir(folder_path) if f.endswith(('.png', '.jpg', '.jpeg'))]
-            self.image_list_view.addItems(image_files)
+            try:
+                logger.info(f"Opening folder: {folder_path}")
+                self.current_folder = folder_path
+                self.image_list_view.clear()
+                self.annotation_view.clear_annotations()
+                self.image_view.set_image(None)
+                
+                image_files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+                self.image_list_view.addItems(image_files)
+                logger.info(f"Found {len(image_files)} images in folder.")
+            except OSError as e:
+                logger.error(f"Error accessing folder {folder_path}: {e}")
+                QMessageBox.critical(self, "Error", f"Could not access the folder: {e}")
 
     def on_image_clicked(self, item):
         if self.current_folder:
             image_path = os.path.join(self.current_folder, item.text())
+            logger.info(f"Image selected: {image_path}")
             self.image_view.set_image(image_path)
+            self.annotation_view.load_annotations(self.image_view.annotations)
 
     def set_draw_bbox_tool(self):
         if self.draw_bbox_action.isChecked():
             self.current_tool = "bbox"
+            logger.info("Tool set to: Draw BBox")
         else:
             self.current_tool = None
+            logger.info("Tool unset.")
         self.image_view.set_tool(self.current_tool)
+
+    def on_annotation_added(self, annotation):
+        logger.info(f"New annotation added with ID: {annotation.id}")
+        self.annotation_view.add_annotation(annotation)
