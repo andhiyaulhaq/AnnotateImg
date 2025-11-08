@@ -25,10 +25,10 @@ The application will be designed using a modular approach to separate concerns, 
     *   **Annotation View (Table):** A dockable widget that displays annotation data. The table includes the following columns:
         *   `ID`: The unique identifier of the annotation.
         *   `Class ID`: The integer representing the class of the object.
-        *   `X`: The normalized x-coordinate of the bounding box center.
-        *   `Y`: The normalized y-coordinate of the bounding box center.
-        *   `Width`: The normalized width of the bounding box.
-        *   `Height`: The normalized height of the bounding box.
+        *   `X1`: The normalized x-coordinate of the top-left corner of the bounding box.
+        *   `Y1`: The normalized y-coordinate of the top-left corner of the bounding box.
+        *   `X2`: The normalized x-coordinate of the bottom-right corner of the bounding box.
+        *   `Y2`: The normalized y-coordinate of the bottom-right corner of the bounding box.
     *   Handles user input events, such as mouse clicks and drags on the `ImageView` for drawing, and signals from other widgets like the toolbar or image list.
 
 2.  **Image Processing & Annotation Layer:**
@@ -41,7 +41,7 @@ The application will be designed using a modular approach to separate concerns, 
     *   Responsible for managing all annotation data.
     *   Will use an SQLite database (`annotations.db`) to store annotations for all images.
     *   This allows for persistent storage, enabling the user to move back and forth between images and view their previous annotations.
-    *   The database stores image paths, `class_id`, and the normalized bounding box coordinates.
+    *   The database stores image paths, `class_id`, and the normalized bounding box coordinates (`x1, y1, x2, y2`).
     *   Handles creating, reading, updating, and deleting annotation records in the database.
 
 4.  **Application Core:**
@@ -96,7 +96,7 @@ The application will be designed using a modular approach to separate concerns, 
 4.  When the user presses the mouse button on the image, `mousePressEvent` is triggered. It records the starting coordinates of the bounding box in the image's pixel coordinate system.
 5.  As the user drags the mouse, `mouseMoveEvent` is triggered continuously. This event handler draws a temporary rectangle on the `QLabel` to provide visual feedback.
 6.  When the user releases the mouse button, `mouseReleaseEvent` is triggered. It records the final pixel coordinates.
-7.  The start and end pixel coordinates are converted into a `[x, y, width, height]` format. These pixel coordinates are clamped to ensure they remain within the image boundaries, preserving their size during repositioning and clamping both position and size during resizing. They are then normalized based on the image's dimensions to the YOLO format: `<x_center> <y_center> <width> <height>`, where all values are floats between 0 and 1.
+7.  The start and end pixel coordinates are converted into an `[x1, y1, x2, y2]` format, representing the top-left and bottom-right corners. These pixel coordinates are handled with floating-point precision using `QPointF` and `QRectF` and are clamped to ensure they remain within the image boundaries, preserving their size during repositioning and clamping both position and size during resizing. They are then normalized based on the image's dimensions to the format: `<x1> <y1> <x2> <y2>`, where all values are floats between 0 and 1.
 8.  An `Annotation` object is created with the `image_id`, a `class_id` (e.g., 0 for the first class), and the normalized `bbox` coordinates. This object is then saved to the SQLite database via the `storage.py` module.
 9.  The `image_view` emits an `annotation_added` signal, which is connected to the `annotation_view` to update its display with the new annotation.
 
@@ -105,7 +105,10 @@ The application will be designed using a modular approach to separate concerns, 
 1.  The user clicks the "Select" action in the toolbar, setting the application's state to `current_tool = 'select'`.
 2.  The user clicks on the `ImageView`. The `mousePressEvent` handler checks if the click occurred within an existing bounding box or on one of its resize handles.
 3.  If a bounding box is hit, it becomes the `selected_annotation`, and its color changes to blue (from red). If a handle is hit, the `selection_handle` is set accordingly (e.g., 'top-left', 'body').
-4.  As the user drags the mouse (`mouseMoveEvent`), the `selected_annotation` is either moved (if `selection_handle` is 'body') or resized (if a handle is selected). During resizing, the corner opposite to the dragged handle remains fixed, ensuring intuitive resizing behavior. The `bbox` coordinates of the `selected_annotation` are updated in real-time. During repositioning, the bounding box's size is preserved while its position is clamped to remain within image boundaries. During resizing, both the position and size are clamped to ensure the box stays within the image. The `ImageView` repaints to show the changes, and the `annotation_view` is updated in real-time to reflect these changes.
+4.  As the user drags the mouse (`mouseMoveEvent`), the `selected_annotation` is either moved (if `selection_handle` is 'body') or resized (if a handle is selected). All coordinate calculations are performed with floating-point precision using `QPointF` and `QRectF`.
+    *   **Moving:** The bounding box's size is preserved, and its position is updated based on the mouse movement, clamped to remain within image boundaries.
+    *   **Resizing:** The corner opposite to the dragged handle remains fixed. The new bounding box coordinates are calculated based on this fixed point and the mouse's current position. The resulting rectangle is then clamped to ensure it stays within the image boundaries.
+    The `x1, y1, x2, y2` coordinates of the `selected_annotation` are updated in real-time. The `ImageView` repaints to show the changes, and the `annotation_view` is updated in real-time to reflect these changes.
 5.  When the user releases the mouse button (`mouseReleaseEvent`), the dragging operation ends. The updated `bbox` coordinates of the `selected_annotation` are saved to the database via the `storage.py` module.
 6.  The `image_view` emits an `annotation_changed` signal, which is connected to the `annotation_view` to update its display with the modified annotation.
 

@@ -39,7 +39,10 @@ def create_tables(conn):
                 id INTEGER PRIMARY KEY,
                 image_id INTEGER NOT NULL,
                 class_id INTEGER NOT NULL,
-                bbox TEXT NOT NULL,
+                x1 REAL NOT NULL,
+                y1 REAL NOT NULL,
+                x2 REAL NOT NULL,
+                y2 REAL NOT NULL,
                 FOREIGN KEY (image_id) REFERENCES images (id)
             );
         """)
@@ -72,11 +75,10 @@ def create_annotation(conn, annotation):
     Create a new annotation.
     """
     try:
-        bbox_str = ",".join(map(str, annotation.bbox))
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO annotations (image_id, class_id, bbox) VALUES (?, ?, ?)",
-            (annotation.image_id, annotation.class_id, bbox_str)
+            "INSERT INTO annotations (image_id, class_id, x1, y1, x2, y2) VALUES (?, ?, ?, ?, ?, ?)",
+            (annotation.image_id, annotation.class_id, annotation.x1, annotation.y1, annotation.x2, annotation.y2)
         )
         conn.commit()
         anno_id = cursor.lastrowid
@@ -92,23 +94,17 @@ def get_annotations_for_image(conn, image_id):
     """
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, class_id, bbox FROM annotations WHERE image_id = ?", (image_id,))
+        cursor.execute("SELECT id, class_id, x1, y1, x2, y2 FROM annotations WHERE image_id = ?", (image_id,))
         annotations = []
         for row in cursor.fetchall():
-            bbox_str = row[2]
-            try:
-                bbox = [float(p) for p in bbox_str.split(',')]
-                if len(bbox) != 4:
-                     raise ValueError("Invalid number of bbox values")
-            except (ValueError, TypeError):
-                logger.warning(f"Could not parse bbox '{bbox_str}' for annotation id {row[0]}. Skipping.")
-                continue
-
             annotations.append(Annotation(
                 id=row[0],
                 image_id=image_id,
                 class_id=row[1],
-                bbox=bbox
+                x1=row[2],
+                y1=row[3],
+                x2=row[4],
+                y2=row[5]
             ))
         logger.info(f"Retrieved {len(annotations)} annotations for image ID: {image_id}")
         return annotations
@@ -121,11 +117,10 @@ def update_annotation(conn, annotation):
     Update an existing annotation.
     """
     try:
-        bbox_str = ",".join(map(str, annotation.bbox))
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE annotations SET class_id = ?, bbox = ? WHERE id = ?",
-            (annotation.class_id, bbox_str, annotation.id)
+            "UPDATE annotations SET class_id = ?, x1 = ?, y1 = ?, x2 = ?, y2 = ? WHERE id = ?",
+            (annotation.class_id, annotation.x1, annotation.y1, annotation.x2, annotation.y2, annotation.id)
         )
         conn.commit()
         logger.info(f"Updated annotation with ID: {annotation.id}")

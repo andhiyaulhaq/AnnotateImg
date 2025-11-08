@@ -3,7 +3,7 @@ Widget for displaying the image.
 """
 import logging
 from PySide6.QtWidgets import QScrollArea, QLabel, QMessageBox
-from PySide6.QtCore import Qt, QRect, QPoint, Signal
+from PySide6.QtCore import Qt, QRect, QPoint, Signal, QRectF, QPointF
 from PySide6.QtGui import QPainter, QPen, QColor
 from ..image import processing
 from ..annotations.annotation import Annotation
@@ -18,8 +18,8 @@ class _ImageLabel(QLabel):
         super().__init__(parent_view)
         self.parent_view = parent_view
         self.drawing = False
-        self.start_point = QPoint()
-        self.end_point = QPoint()
+        self.start_point = QPointF()
+        self.end_point = QPointF()
         self._pixmap = None
 
         self.selected_annotation = None
@@ -55,30 +55,29 @@ class _ImageLabel(QLabel):
         image_x = (widget_pos.x() - offset_x) * pixmap_size.width() / scaled_size.width()
         image_y = (widget_pos.y() - offset_y) * pixmap_size.height() / scaled_size.height()
 
-        return QPoint(int(image_x), int(image_y))
+        return QPointF(image_x, image_y)
 
-    def _yolo_to_pixel_rect(self, bbox, img_w, img_h):
-        x_center, y_center, norm_w, norm_h = bbox
-        w = norm_w * img_w
-        h = norm_h * img_h
-        x = x_center * img_w - w / 2
-        y = y_center * img_h - h / 2
-        return QRect(int(x), int(y), int(w), int(h))
+    def _norm_to_pixel_rect(self, annotation, img_w, img_h):
+        x1_pixel = annotation.x1 * img_w
+        y1_pixel = annotation.y1 * img_h
+        x2_pixel = annotation.x2 * img_w
+        y2_pixel = annotation.y2 * img_h
+        return QRectF(x1_pixel, y1_pixel, x2_pixel - x1_pixel, y2_pixel - y1_pixel)
 
-    def _pixel_rect_to_yolo(self, rect, img_w, img_h):
-        x_center = (rect.x() + rect.width() / 2) / img_w
-        y_center = (rect.y() + rect.height() / 2) / img_h
-        norm_w = rect.width() / img_w
-        norm_h = rect.height() / img_h
-        return [x_center, y_center, norm_w, norm_h]
+    def _pixel_to_norm_rect(self, pixel_rect_f, img_w, img_h):
+        x1_norm = pixel_rect_f.left() / img_w
+        y1_norm = pixel_rect_f.top() / img_h
+        x2_norm = (pixel_rect_f.left() + pixel_rect_f.width()) / img_w
+        y2_norm = (pixel_rect_f.top() + pixel_rect_f.height()) / img_h
+        return [x1_norm, y1_norm, x2_norm, y2_norm]
 
-    def _get_handle_rects(self, pixel_rect):
+    def _get_handle_rects(self, pixel_rect_f):
         handles = {}
         hs = HANDLE_SIZE // 2
-        handles['top-left'] = QRect(pixel_rect.topLeft().x() - hs, pixel_rect.topLeft().y() - hs, HANDLE_SIZE, HANDLE_SIZE)
-        handles['top-right'] = QRect(pixel_rect.topRight().x() - hs, pixel_rect.topRight().y() - hs, HANDLE_SIZE, HANDLE_SIZE)
-        handles['bottom-left'] = QRect(pixel_rect.bottomLeft().x() - hs, pixel_rect.bottomLeft().y() - hs, HANDLE_SIZE, HANDLE_SIZE)
-        handles['bottom-right'] = QRect(pixel_rect.bottomRight().x() - hs, pixel_rect.bottomRight().y() - hs, HANDLE_SIZE, HANDLE_SIZE)
+        handles['top-left'] = QRectF(pixel_rect_f.topLeft().x() - hs, pixel_rect_f.topLeft().y() - hs, HANDLE_SIZE, HANDLE_SIZE)
+        handles['top-right'] = QRectF(pixel_rect_f.topRight().x() - hs, pixel_rect_f.topRight().y() - hs, HANDLE_SIZE, HANDLE_SIZE)
+        handles['bottom-left'] = QRectF(pixel_rect_f.bottomLeft().x() - hs, pixel_rect_f.bottomLeft().y() - hs, HANDLE_SIZE, HANDLE_SIZE)
+        handles['bottom-right'] = QRectF(pixel_rect_f.bottomRight().x() - hs, pixel_rect_f.bottomRight().y() - hs, HANDLE_SIZE, HANDLE_SIZE)
         return handles
 
     def _hit_test(self, mouse_pos_img_coords):
@@ -89,7 +88,7 @@ class _ImageLabel(QLabel):
         img_h = self._pixmap.height()
 
         for annotation in reversed(self.parent_view.annotations): # Check top-most annotations first
-            pixel_rect = self._yolo_to_pixel_rect(annotation.bbox, img_w, img_h)
+            pixel_rect = self._norm_to_pixel_rect(annotation, img_w, img_h)
             
             # Check handles first
             handles = self._get_handle_rects(pixel_rect)
@@ -103,24 +102,24 @@ class _ImageLabel(QLabel):
         
         return None, None
 
-    def _clamp_rect_to_image(self, rect, img_w, img_h, preserve_size=False):
-        x = rect.x()
-        y = rect.y()
-        w = rect.width()
-        h = rect.height()
+    def _clamp_rect_to_image(self, rect_f, img_w, img_h, preserve_size=False):
+        x = rect_f.x()
+        y = rect_f.y()
+        w = rect_f.width()
+        h = rect_f.height()
 
         if preserve_size:
             # Clamp position while preserving size
-            x = max(0, min(x, img_w - w))
-            y = max(0, min(y, img_h - h))
+            x = max(0.0, min(x, img_w - w))
+            y = max(0.0, min(y, img_h - h))
         else:
             # Clamp position and size (for resizing or initial drawing)
-            x = max(0, x)
-            y = max(0, y)
+            x = max(0.0, x)
+            y = max(0.0, y)
             w = min(w, img_w - x)
             h = min(h, img_h - y)
         
-        return QRect(x, y, w, h)
+        return QRectF(x, y, w, h)
 
     def mousePressEvent(self, event):
         mouse_pos_img_coords = self.get_image_coords(event.pos())
@@ -156,41 +155,55 @@ class _ImageLabel(QLabel):
             img_w = self._pixmap.width()
             img_h = self._pixmap.height()
 
-            current_pixel_rect = self._yolo_to_pixel_rect(self.selected_annotation.bbox, img_w, img_h)
-            new_pixel_rect = QRect(current_pixel_rect)
+            current_pixel_rect_f = self._norm_to_pixel_rect(self.selected_annotation, img_w, img_h)
+            new_pixel_rect_f = QRectF(current_pixel_rect_f)
 
             if self.selection_handle == 'body':
                 delta_x = mouse_pos_img_coords.x() - self.last_mouse_pos.x()
                 delta_y = mouse_pos_img_coords.y() - self.last_mouse_pos.y()
-                new_pixel_rect.translate(delta_x, delta_y)
-                new_pixel_rect = self._clamp_rect_to_image(new_pixel_rect, img_w, img_h, preserve_size=True)
+                new_pixel_rect_f.translate(delta_x, delta_y)
+                new_pixel_rect_f = self._clamp_rect_to_image(new_pixel_rect_f, img_w, img_h, preserve_size=True)
             else: # Resizing
-                x1 = current_pixel_rect.left()
-                y1 = current_pixel_rect.top()
-                x2 = current_pixel_rect.right()
-                y2 = current_pixel_rect.bottom()
+                # Get current pixel coordinates (float)
+                current_x1 = current_pixel_rect_f.left()
+                current_y1 = current_pixel_rect_f.top()
+                current_x2 = current_pixel_rect_f.right()
+                current_y2 = current_pixel_rect_f.bottom()
+
+                new_x1, new_y1, new_x2, new_y2 = current_x1, current_y1, current_x2, current_y2
 
                 # Determine the fixed point and update the moving point
                 if self.selection_handle == 'top-left':
-                    x1 = mouse_pos_img_coords.x()
-                    y1 = mouse_pos_img_coords.y()
+                    new_x1 = mouse_pos_img_coords.x()
+                    new_y1 = mouse_pos_img_coords.y()
                 elif self.selection_handle == 'top-right':
-                    x2 = mouse_pos_img_coords.x()
-                    y1 = mouse_pos_img_coords.y()
+                    new_x2 = mouse_pos_img_coords.x()
+                    new_y1 = mouse_pos_img_coords.y()
                 elif self.selection_handle == 'bottom-left':
-                    x1 = mouse_pos_img_coords.x()
-                    y2 = mouse_pos_img_coords.y()
+                    new_x1 = mouse_pos_img_coords.x()
+                    new_y2 = mouse_pos_img_coords.y()
                 elif self.selection_handle == 'bottom-right':
-                    x2 = mouse_pos_img_coords.x()
-                    y2 = mouse_pos_img_coords.y()
+                    new_x2 = mouse_pos_img_coords.x()
+                    new_y2 = mouse_pos_img_coords.y()
                 
-                # Create a new QRect from the updated corners, ensuring it's normalized
-                new_pixel_rect = QRect(QPoint(x1, y1), QPoint(x2, y2)).normalized()
+                # Manually ensure x1 <= x2 and y1 <= y2
+                final_x1 = min(new_x1, new_x2)
+                final_y1 = min(new_y1, new_y2)
+                final_x2 = max(new_x1, new_x2)
+                final_y2 = max(new_y1, new_y2)
+
+                # Create a new QRectF from the updated corners
+                new_pixel_rect_f = QRectF(final_x1, final_y1, final_x2 - final_x1, final_y2 - final_y1)
                 
                 # Clamp the new rectangle to image boundaries
-                new_pixel_rect = self._clamp_rect_to_image(new_pixel_rect, img_w, img_h, preserve_size=False)
+                new_pixel_rect_f = self._clamp_rect_to_image(new_pixel_rect_f, img_w, img_h, preserve_size=False)
             
-            self.selected_annotation.bbox = self._pixel_rect_to_yolo(new_pixel_rect, img_w, img_h)
+            norm_coords = self._pixel_to_norm_rect(new_pixel_rect_f, img_w, img_h)
+            self.selected_annotation.x1 = norm_coords[0]
+            self.selected_annotation.y1 = norm_coords[1]
+            self.selected_annotation.x2 = norm_coords[2]
+            self.selected_annotation.y2 = norm_coords[3]
+
             self.last_mouse_pos = mouse_pos_img_coords
             self.parent_view.annotation_changed.emit(self.selected_annotation) # Emit signal for real-time update
             self.update()
@@ -205,14 +218,14 @@ class _ImageLabel(QLabel):
             self.end_point = mouse_pos_img_coords
             logger.debug(f"Mouse release: stop drawing at {self.end_point}")
 
-            rect = QRect(self.start_point, self.end_point).normalized()
+            rect_f = QRectF(self.start_point, self.end_point).normalized()
             
             if self._pixmap:
                 img_w = self._pixmap.width()
                 img_h = self._pixmap.height()
 
-                rect = self._clamp_rect_to_image(rect, img_w, img_h, preserve_size=False)
-                bbox = self._pixel_rect_to_yolo(rect, img_w, img_h)
+                rect_f = self._clamp_rect_to_image(rect_f, img_w, img_h, preserve_size=False)
+                norm_coords = self._pixel_to_norm_rect(rect_f, img_w, img_h)
 
                 if self.parent_view.current_image_path:
                     try:
@@ -222,7 +235,15 @@ class _ImageLabel(QLabel):
                             if image_id is None:
                                 raise ConnectionError("Failed to get or create image record.")
 
-                            new_annotation = Annotation(id=None, image_id=image_id, class_id=0, bbox=bbox)
+                            new_annotation = Annotation(
+                                id=None, 
+                                image_id=image_id, 
+                                class_id=0, 
+                                x1=norm_coords[0], 
+                                y1=norm_coords[1], 
+                                x2=norm_coords[2], 
+                                y2=norm_coords[3]
+                            )
                             anno_id = storage.create_annotation(conn, new_annotation)
                             if anno_id is None:
                                 raise ConnectionError("Failed to create annotation record.")
@@ -276,42 +297,35 @@ class _ImageLabel(QLabel):
         img_w = self._pixmap.width()
         img_h = self._pixmap.height()
 
-        def to_widget_coords_from_pixels(image_point_tuple):
-            px = image_point_tuple[0] * target_size.width() / pixmap_size.width() + offset_x
-            py = image_point_tuple[1] * target_size.height() / pixmap_size.height() + offset_y
-            return QPoint(int(px), int(py))
+        def to_widget_coords_from_pixels(image_point_f_tuple):
+            px = image_point_f_tuple[0] * target_size.width() / pixmap_size.width() + offset_x
+            py = image_point_f_tuple[1] * target_size.height() / pixmap_size.height() + offset_y
+            return QPointF(px, py)
 
         for annotation in self.parent_view.annotations:
-            x_center, y_center, norm_w, norm_h = annotation.bbox
-            
-            w = norm_w * img_w
-            h = norm_h * img_h
-            x = x_center * img_w - w / 2
-            y = y_center * img_h - h / 2
-
-            pixel_rect = QRect(int(x), int(y), int(w), int(h))
-            widget_rect = QRect(to_widget_coords_from_pixels(pixel_rect.topLeft().toTuple()),
-                                to_widget_coords_from_pixels(pixel_rect.bottomRight().toTuple()))
+            pixel_rect_f = self._norm_to_pixel_rect(annotation, img_w, img_h)
+            widget_rect_f = QRectF(to_widget_coords_from_pixels(pixel_rect_f.topLeft().toTuple()),
+                                   to_widget_coords_from_pixels(pixel_rect_f.bottomRight().toTuple()))
 
             if annotation == self.selected_annotation:
                 painter.setPen(QPen(QColor(0, 0, 255), 2, Qt.SolidLine)) # Blue for selected
-                painter.drawRect(widget_rect)
+                painter.drawRect(widget_rect_f)
                 # Draw handles
-                handles = self._get_handle_rects(pixel_rect)
-                for handle_name, handle_rect_img_coords in handles.items():
-                    handle_rect_widget_coords = QRect(to_widget_coords_from_pixels(handle_rect_img_coords.topLeft().toTuple()),
-                                                      to_widget_coords_from_pixels(handle_rect_img_coords.bottomRight().toTuple()))
-                    painter.fillRect(handle_rect_widget_coords, QColor(0, 255, 0)) # Green handles
+                handles = self._get_handle_rects(pixel_rect_f)
+                for handle_name, handle_rect_f_img_coords in handles.items():
+                    handle_rect_f_widget_coords = QRectF(to_widget_coords_from_pixels(handle_rect_f_img_coords.topLeft().toTuple()),
+                                                         to_widget_coords_from_pixels(handle_rect_f_img_coords.bottomRight().toTuple()))
+                    painter.fillRect(handle_rect_f_widget_coords, QColor(0, 255, 0)) # Green handles
             else:
                 painter.setPen(QPen(Qt.red, 2, Qt.SolidLine)) # Red for unselected
-                painter.drawRect(widget_rect)
+                painter.drawRect(widget_rect_f)
 
         if self.drawing:
             p1 = to_widget_coords_from_pixels((self.start_point.x(), self.start_point.y()))
             p2 = to_widget_coords_from_pixels((self.end_point.x(), self.end_point.y()))
-            rect = QRect(p1, p2)
+            rect_f = QRectF(p1, p2)
             painter.setPen(QPen(Qt.red, 2, Qt.SolidLine))
-            painter.drawRect(rect)
+            painter.drawRect(rect_f)
 
 class ImageView(QScrollArea):
     """
