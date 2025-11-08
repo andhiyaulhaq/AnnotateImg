@@ -91,9 +91,9 @@ The application will be designed using a modular approach to separate concerns, 
 2.  The user clicks the "Draw Bounding Box" action. This sets a state in the application (e.g., `current_tool = 'bbox'`).
 3.  The `image_view.py` (specifically the `QLabel` inside it) has mouse event handlers (`mousePressEvent`, `mouseMoveEvent`, `mouseReleaseEvent`).
 4.  When the user presses the mouse button on the image, `mousePressEvent` is triggered. It records the starting coordinates of the bounding box.
-5.  As the user drags the mouse, `mouseMoveEvent` is triggered continuously. This event handler draws a temporary rectangle on the `QLabel` to provide visual feedback.
-6.  When the user releases the mouse button, `mouseReleaseEvent` is triggered. It records the final coordinates.
-7.  The start and end coordinates are used to define the bounding box. The pixel coordinates are stored.
+5.  As the user drags the mouse, `mouseMoveEvent` is triggered continuously. The mouse coordinates, which are relative to the widget, are transformed to the coordinate system of the original image. This ensures that the annotation is correctly placed regardless of how the image is scaled or resized in the view. This event handler draws a temporary rectangle on the `QLabel` to provide visual feedback.
+6.  When the user releases the mouse button, `mouseReleaseEvent` is triggered. It records the final coordinates, also transformed to the image's coordinate system.
+7.  The start and end coordinates are used to define the bounding box. The pixel coordinates, now correctly mapped to the image, are stored.
 8.  An `Annotation` object is created with the image_id, a default label, and the points. This object is then saved to the SQLite database via the `storage.py` module.
 9.  The `image_view` emits an `annotation_added` signal, which is connected to the `annotation_view` to update its display with the new annotation.
 

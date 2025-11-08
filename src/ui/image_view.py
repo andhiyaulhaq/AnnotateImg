@@ -19,36 +19,59 @@ class _ImageLabel(QLabel):
         self.start_point = QPoint()
         self.end_point = QPoint()
 
+    def get_image_coords(self, widget_pos):
+        if not self.pixmap():
+            return None
+
+        pixmap_size = self.pixmap().size()
+        label_size = self.size()
+
+        # Calculate the scaled pixmap dimensions
+        scaled_pixmap = self.pixmap().scaled(label_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        scaled_size = scaled_pixmap.size()
+
+        # Calculate the top-left position of the scaled pixmap
+        offset_x = (label_size.width() - scaled_size.width()) / 2
+        offset_y = (label_size.height() - scaled_size.height()) / 2
+
+        # Check if the click is outside the image area
+        if not (offset_x <= widget_pos.x() < offset_x + scaled_size.width() and
+                offset_y <= widget_pos.y() < offset_y + scaled_size.height()):
+            return None
+
+        # Translate widget coordinates to image coordinates
+        image_x = (widget_pos.x() - offset_x) * pixmap_size.width() / scaled_size.width()
+        image_y = (widget_pos.y() - offset_y) * pixmap_size.height() / scaled_size.height()
+
+        return QPoint(int(image_x), int(image_y))
+
     def mousePressEvent(self, event):
         if self.parent_view.tool == "bbox" and event.button() == Qt.LeftButton:
-            self.drawing = True
-            self.start_point = event.pos()
-            self.end_point = event.pos()
-            logger.debug(f"Mouse press: start drawing at {self.start_point}")
-            self.update()
+            image_pos = self.get_image_coords(event.pos())
+            if image_pos:
+                self.drawing = True
+                self.start_point = image_pos
+                self.end_point = image_pos
+                logger.debug(f"Mouse press: start drawing at {self.start_point}")
+                self.update()
 
     def mouseMoveEvent(self, event):
         if self.drawing:
-            self.end_point = event.pos()
-            self.update()
+            image_pos = self.get_image_coords(event.pos())
+            if image_pos:
+                self.end_point = image_pos
+                self.update()
 
     def mouseReleaseEvent(self, event):
         if self.drawing:
             self.drawing = False
+            image_pos = self.get_image_coords(event.pos())
+            if image_pos:
+                self.end_point = image_pos
             logger.debug(f"Mouse release: stop drawing at {self.end_point}")
             
             points = [(self.start_point.x(), self.start_point.y()), (self.end_point.x(), self.end_point.y())]
             
-            if self.parent_view._pixmap:
-                pixmap_rect = self.parent_view._pixmap.rect()
-                points = [
-                    (
-                        max(0, min(p[0], pixmap_rect.width())),
-                        max(0, min(p[1], pixmap_rect.height()))
-                    )
-                    for p in points
-                ]
-
             if self.parent_view.current_image_path:
                 try:
                     conn = storage.create_connection("annotations.db")
@@ -76,18 +99,36 @@ class _ImageLabel(QLabel):
 
     def paintEvent(self, event):
         super().paintEvent(event)
+        if not self.pixmap():
+            return
+
         painter = QPainter(self)
         pen = QPen(Qt.red, 2, Qt.SolidLine)
         painter.setPen(pen)
 
+        pixmap_size = self.pixmap().size()
+        label_size = self.size()
+        
+        scaled_pixmap = self.pixmap().scaled(label_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        scaled_size = scaled_pixmap.size()
+        offset_x = (label_size.width() - scaled_size.width()) / 2
+        offset_y = (label_size.height() - scaled_size.height()) / 2
+
+        def to_widget_coords(image_point):
+            x = image_point[0] * scaled_size.width() / pixmap_size.width() + offset_x
+            y = image_point[1] * scaled_size.height() / pixmap_size.height() + offset_y
+            return QPoint(int(x), int(y))
+
         for annotation in self.parent_view.annotations:
             if len(annotation.points) == 2:
-                p1 = QPoint(annotation.points[0][0], annotation.points[0][1])
-                p2 = QPoint(annotation.points[1][0], annotation.points[1][1])
+                p1 = to_widget_coords(annotation.points[0])
+                p2 = to_widget_coords(annotation.points[1])
                 painter.drawRect(QRect(p1, p2))
 
         if self.drawing:
-            rect = QRect(self.start_point, self.end_point)
+            p1 = to_widget_coords((self.start_point.x(), self.start_point.y()))
+            p2 = to_widget_coords((self.end_point.x(), self.end_point.y()))
+            rect = QRect(p1, p2)
             painter.drawRect(rect)
 
 class ImageView(QScrollArea):
