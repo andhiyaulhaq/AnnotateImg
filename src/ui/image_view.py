@@ -12,6 +12,7 @@ from ..annotations import storage
 logger = logging.getLogger(__name__)
 
 HANDLE_SIZE = 8 # Size of the resize handles
+HANDLE_MARGIN = 5 # Margin around edges for resize handles
 
 class _ImageLabel(QLabel):
     def __init__(self, parent_view):
@@ -23,7 +24,7 @@ class _ImageLabel(QLabel):
         self._pixmap = None
 
         self.selected_annotation = None
-        self.selection_handle = None # 'body', 'top-left', 'top-right', 'bottom-left', 'bottom-right'
+        self.selection_handle = None # 'body', 'top-left', 'top-right', 'bottom-left', 'bottom-right', 'top', 'bottom', 'left', 'right'
         self.dragging = False
         self.last_mouse_pos = QPointF()
         self.setMouseTracking(True) # Enable mouse tracking
@@ -75,10 +76,20 @@ class _ImageLabel(QLabel):
     def _get_handle_rects(self, pixel_rect_f):
         handles = {}
         hs = HANDLE_SIZE // 2
+        hm = HANDLE_MARGIN
+
+        # Corner handles
         handles['top-left'] = QRectF(pixel_rect_f.topLeft().x() - hs, pixel_rect_f.topLeft().y() - hs, HANDLE_SIZE, HANDLE_SIZE)
         handles['top-right'] = QRectF(pixel_rect_f.topRight().x() - hs, pixel_rect_f.topRight().y() - hs, HANDLE_SIZE, HANDLE_SIZE)
         handles['bottom-left'] = QRectF(pixel_rect_f.bottomLeft().x() - hs, pixel_rect_f.bottomLeft().y() - hs, HANDLE_SIZE, HANDLE_SIZE)
         handles['bottom-right'] = QRectF(pixel_rect_f.bottomRight().x() - hs, pixel_rect_f.bottomRight().y() - hs, HANDLE_SIZE, HANDLE_SIZE)
+
+        # Edge handles
+        handles['top'] = QRectF(pixel_rect_f.left() + hs, pixel_rect_f.top() - hm, pixel_rect_f.width() - 2 * hs, 2 * hm)
+        handles['bottom'] = QRectF(pixel_rect_f.left() + hs, pixel_rect_f.bottom() - hm, pixel_rect_f.width() - 2 * hs, 2 * hm)
+        handles['left'] = QRectF(pixel_rect_f.left() - hm, pixel_rect_f.top() + hs, 2 * hm, pixel_rect_f.height() - 2 * hs)
+        handles['right'] = QRectF(pixel_rect_f.right() - hm, pixel_rect_f.top() + hs, 2 * hm, pixel_rect_f.height() - 2 * hs)
+        
         return handles
 
     def _hit_test(self, mouse_pos_img_coords):
@@ -89,16 +100,16 @@ class _ImageLabel(QLabel):
         img_h = self._pixmap.height()
 
         for annotation in reversed(self.parent_view.annotations): # Check top-most annotations first
-            pixel_rect = self._norm_to_pixel_rect(annotation, img_w, img_h)
+            pixel_rect_f = self._norm_to_pixel_rect(annotation, img_w, img_h)
             
             # Check handles first
-            handles = self._get_handle_rects(pixel_rect)
-            for handle_name, handle_rect in handles.items():
-                if handle_rect.contains(mouse_pos_img_coords):
+            handles = self._get_handle_rects(pixel_rect_f)
+            for handle_name, handle_rect_f in handles.items():
+                if handle_rect_f.contains(mouse_pos_img_coords):
                     return annotation, handle_name
             
             # Check body of the bounding box
-            if pixel_rect.contains(mouse_pos_img_coords):
+            if pixel_rect_f.contains(mouse_pos_img_coords):
                 return annotation, 'body'
         
         return None, None
@@ -187,6 +198,14 @@ class _ImageLabel(QLabel):
                 elif self.selection_handle == 'bottom-right':
                     new_x2 = mouse_pos_img_coords.x()
                     new_y2 = mouse_pos_img_coords.y()
+                elif self.selection_handle == 'top':
+                    new_y1 = mouse_pos_img_coords.y()
+                elif self.selection_handle == 'bottom':
+                    new_y2 = mouse_pos_img_coords.y()
+                elif self.selection_handle == 'left':
+                    new_x1 = mouse_pos_img_coords.x()
+                elif self.selection_handle == 'right':
+                    new_x2 = mouse_pos_img_coords.x()
                 
                 # Manually ensure x1 <= x2 and y1 <= y2
                 final_x1 = min(new_x1, new_x2)
@@ -219,6 +238,10 @@ class _ImageLabel(QLabel):
                         self.setCursor(Qt.SizeFDiagCursor)
                     elif handle == 'top-right' or handle == 'bottom-left':
                         self.setCursor(Qt.SizeBDiagCursor)
+                    elif handle == 'top' or handle == 'bottom':
+                        self.setCursor(Qt.SizeVerCursor)
+                    elif handle == 'left' or handle == 'right':
+                        self.setCursor(Qt.SizeHorCursor)
                 else:
                     self.unsetCursor()
             else:
