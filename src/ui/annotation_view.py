@@ -71,14 +71,22 @@ class AnnotationView(QTableView):
         """
         for row in range(self.model.rowCount()):
             item_id = self.model.item(row, 0)
-            if item_id and int(item_id.text()) == annotation.id:
-                self.model.item(row, 1).setText(str(annotation.class_id))
-                self.model.item(row, 2).setText(f"{annotation.x1:.4f}")
-                self.model.item(row, 3).setText(f"{annotation.y1:.4f}")
-                self.model.item(row, 4).setText(f"{annotation.x2:.4f}")
-                self.model.item(row, 5).setText(f"{annotation.y2:.4f}")
-                logger.info(f"Annotation {annotation.id} updated in the view.")
-                return
+            if item_id:
+                stored_annotation = item_id.data(Qt.UserRole)
+                # Check if it's the same annotation object (for temporary ones)
+                # or if the IDs match (for saved ones)
+                if stored_annotation == annotation or (stored_annotation and stored_annotation.id == annotation.id):
+                    # Update the stored annotation object
+                    item_id.setData(annotation, Qt.UserRole)
+                    # Update the display text
+                    item_id.setText(str(annotation.id))
+                    self.model.item(row, 1).setText(str(annotation.class_id))
+                    self.model.item(row, 2).setText(f"{annotation.x1:.4f}")
+                    self.model.item(row, 3).setText(f"{annotation.y1:.4f}")
+                    self.model.item(row, 4).setText(f"{annotation.x2:.4f}")
+                    self.model.item(row, 5).setText(f"{annotation.y2:.4f}")
+                    logger.info(f"Annotation {annotation.id} updated in the view.")
+                    return
         logger.warning(f"Annotation {annotation.id} not found in the view for update.")
 
     def remove_annotation(self, annotation):
@@ -87,10 +95,12 @@ class AnnotationView(QTableView):
         """
         for row in range(self.model.rowCount()):
             item_id = self.model.item(row, 0)
-            if item_id and int(item_id.text()) == annotation.id:
-                self.model.removeRow(row)
-                logger.info(f"Annotation {annotation.id} removed from the view.")
-                return
+            if item_id:
+                stored_annotation = item_id.data(Qt.UserRole)
+                if stored_annotation == annotation or (stored_annotation and stored_annotation.id == annotation.id):
+                    self.model.removeRow(row)
+                    logger.info(f"Annotation {annotation.id} removed from the view.")
+                    return
         logger.warning(f"Annotation {annotation.id} not found in the view for removal.")
 
     def select_annotation_in_table(self, annotation):
@@ -106,8 +116,10 @@ class AnnotationView(QTableView):
 
         for row in range(self.model.rowCount()):
             item_id = self.model.item(row, 0)
-            if item_id and int(item_id.text()) == annotation.id:
-                self.selectRow(row)
-                logger.debug(f"Annotation ID {annotation.id} selected in table.")
-                return
+            if item_id:
+                stored_annotation = item_id.data(Qt.UserRole)
+                if stored_annotation == annotation or (stored_annotation and stored_annotation.id == annotation.id):
+                    self.selectRow(row)
+                    logger.debug(f"Annotation ID {annotation.id} selected in table.")
+                    return
         logger.warning(f"Annotation {annotation.id} not found in table for selection.")

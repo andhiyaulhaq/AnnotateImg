@@ -297,6 +297,21 @@ class _ImageLabel(QLabel):
                 norm_coords = self._pixel_to_norm_rect(rect_f, img_w, img_h)
 
                 if self.parent_view.current_image_path:
+                    # Create a temporary annotation for preview
+                    temp_annotation = Annotation(
+                        id=None, # Temporary ID, will be updated after saving
+                        image_id=None, # Temporary, will be updated after saving
+                        class_id=0, # Default class ID for preview
+                        x1=norm_coords[0], 
+                        y1=norm_coords[1], 
+                        x2=norm_coords[2], 
+                        y2=norm_coords[3]
+                    )
+                    self.parent_view.annotations.append(temp_annotation)
+                    self.selected_annotation = temp_annotation
+                    self.parent_view.annotation_added.emit(temp_annotation) # Add to table for preview
+                    self.update() # Show on image for preview
+
                     # Prompt user for class ID
                     class_id, ok = QInputDialog.getInt(self, "Class ID", "Enter Class ID:", 0, 0, 1000, 1)
                     if ok:
@@ -307,31 +322,31 @@ class _ImageLabel(QLabel):
                                 if image_id is None:
                                     raise ConnectionError("Failed to get or create image record.")
 
-                                new_annotation = Annotation(
-                                    id=None, 
-                                    image_id=image_id, 
-                                    class_id=class_id, 
-                                    x1=norm_coords[0], 
-                                    y1=norm_coords[1], 
-                                    x2=norm_coords[2], 
-                                    y2=norm_coords[3]
-                                )
-                                anno_id = storage.create_annotation(conn, new_annotation)
+                                temp_annotation.image_id = image_id
+                                temp_annotation.class_id = class_id
+
+                                anno_id = storage.create_annotation(conn, temp_annotation)
                                 if anno_id is None:
                                     raise ConnectionError("Failed to create annotation record.")
                                     
-                                new_annotation.id = anno_id
+                                temp_annotation.id = anno_id # Update with real ID
                                 
-                                self.parent_view.annotations.append(new_annotation)
-                                self.parent_view.annotation_added.emit(new_annotation)
+                                self.parent_view.annotation_changed.emit(temp_annotation) # Update table with real ID and class ID
                                 
                                 conn.close()
                         except Exception as e:
                             logger.error(f"Error saving annotation: {e}")
                             QMessageBox.critical(self.parent_view, "Error", f"Could not save the annotation: {e}")
+                            # If saving fails, remove the temporary annotation
+                            self.parent_view.annotations.remove(temp_annotation)
+                            self.parent_view.annotation_deleted.emit(temp_annotation)
+                            self.selected_annotation = None
                     else:
-                        logger.info("Annotation creation cancelled by user.")
-
+                        logger.info("Annotation creation cancelled by user, removing temporary annotation.")
+                        # If cancelled, remove the temporary annotation
+                        self.parent_view.annotations.remove(temp_annotation)
+                        self.parent_view.annotation_deleted.emit(temp_annotation)
+                        self.selected_annotation = None
             self.update()
         elif self.dragging and self.selected_annotation:
             self.dragging = False

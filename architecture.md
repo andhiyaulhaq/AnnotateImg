@@ -97,9 +97,11 @@ The application will be designed using a modular approach to separate concerns, 
 5.  As the user drags the mouse, `mouseMoveEvent` is triggered continuously. This event handler draws a temporary rectangle on the `QLabel` using the `UNSELECTED_COLOR` (red) to provide visual feedback.
 6.  When the user releases the mouse button, `mouseReleaseEvent` is triggered. It records the final pixel coordinates.
 7.  The start and end pixel coordinates are converted into an `[x1, y1, x2, y2]` format, representing the top-left and bottom-right corners. These pixel coordinates are handled with floating-point precision using `QPointF` and `QRectF` and are clamped to ensure they remain within the image boundaries, preserving their size during repositioning and clamping both position and size during resizing. They are then normalized based on the image's dimensions to the format: `<x1> <y1> <x2> <y2>`, where all values are floats between 0 and 1.
-8.  A dialog box (`QInputDialog`) prompts the user to enter a `class_id` for the new bounding box.
-9.  An `Annotation` object is created with the `image_id`, the provided `class_id`, and the normalized `x1, y1, x2, y2` coordinates. This object is then saved to the SQLite database via the `storage.py` module. If the user cancels the dialog or provides invalid input, the annotation creation is aborted.
-10. The `image_view` emits an `annotation_added` signal, which is connected to the `annotation_view` to update its display with the new annotation.
+8.  A temporary `Annotation` object is created with these coordinates and a default class ID. This temporary annotation is immediately added to the `ImageView` for visual preview and to the `AnnotationView` table. It is also set as the `selected_annotation`.
+9.  A dialog box (`QInputDialog`) then prompts the user to enter a `class_id` for the new bounding box.
+10. If the user confirms (presses "OK"), the temporary `Annotation` object's `image_id` and `class_id` are updated, and it is saved to the SQLite database via the `storage.py` module. The `Annotation` object's `id` is then updated with the real ID from the database, and an `annotation_changed` signal is emitted to update the table.
+11. If the user cancels the dialog, the temporary `Annotation` object is removed from `self.parent_view.annotations` and the `AnnotationView` table (via an `annotation_deleted` signal), and the `selected_annotation` is cleared.
+12. The `ImageView` repaints to reflect the changes.
 
 ## Workflow Example: Selecting and Modifying a Bounding Box
 
