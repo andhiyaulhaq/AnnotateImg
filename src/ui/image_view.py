@@ -4,7 +4,7 @@ Widget for displaying the image.
 import logging
 from PySide6.QtWidgets import QScrollArea, QLabel, QMessageBox, QInputDialog
 from PySide6.QtCore import Qt, QRect, QPoint, Signal, QRectF, QPointF
-from PySide6.QtGui import QPainter, QPen, QColor
+from PySide6.QtGui import QPainter, QPen, QColor, QFont
 from ..image import processing
 from ..annotations.annotation import Annotation
 from ..annotations import storage
@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 
 HANDLE_SIZE = 8 # Size of the resize handles
 HANDLE_MARGIN = 5 # Margin around edges for resize handles
+
+SELECTED_COLOR = QColor(0, 0, 255)  # Blue
+UNSELECTED_COLOR = QColor(255, 0, 0) # Red
 
 class _ImageLabel(QLabel):
     def __init__(self, parent_view):
@@ -355,17 +358,40 @@ class _ImageLabel(QLabel):
                                    to_widget_coords_from_pixels(pixel_rect_f.bottomRight().toTuple()))
 
             if annotation == self.selected_annotation:
-                painter.setPen(QPen(QColor(0, 0, 255), 2, Qt.SolidLine)) # Blue for selected
+                painter.setPen(QPen(SELECTED_COLOR, 2, Qt.SolidLine)) # Blue for selected
                 painter.drawRect(widget_rect_f)
                 # Draw handles
                 handles = self._get_handle_rects(pixel_rect_f)
                 for handle_name, handle_rect_f_img_coords in handles.items():
                     handle_rect_f_widget_coords = QRectF(to_widget_coords_from_pixels(handle_rect_f_img_coords.topLeft().toTuple()),
                                                          to_widget_coords_from_pixels(handle_rect_f_img_coords.bottomRight().toTuple()))
-                    painter.fillRect(handle_rect_f_widget_coords, QColor(0, 255, 0)) # Green handles
+                    painter.fillRect(handle_rect_f_widget_coords, SELECTED_COLOR) # Blue handles
             else:
-                painter.setPen(QPen(Qt.red, 2, Qt.SolidLine)) # Red for unselected
+                painter.setPen(QPen(UNSELECTED_COLOR, 2, Qt.SolidLine)) # Red for unselected
                 painter.drawRect(widget_rect_f)
+
+            # Determine bounding box color for text background
+            if annotation == self.selected_annotation:
+                bbox_color = SELECTED_COLOR
+            else:
+                bbox_color = UNSELECTED_COLOR
+
+            # Draw class ID
+            class_id_text = str(annotation.class_id)
+            font = QFont("Sans-serif", 12)
+            font.setBold(True)
+            painter.setFont(font)
+            
+            text_rect = painter.fontMetrics().boundingRect(class_id_text)
+            text_x = widget_rect_f.x()
+            text_y = widget_rect_f.y() - text_rect.height() # Position directly on top edge
+
+            # Draw background rectangle for text
+            painter.fillRect(QRectF(text_x, text_y, text_rect.width(), text_rect.height()), bbox_color)
+
+            # Draw text with a white color
+            painter.setPen(QPen(Qt.white, 1)) # Text color
+            painter.drawText(QPointF(text_x, text_y + painter.fontMetrics().ascent()), class_id_text)
 
         if self.drawing:
             p1 = to_widget_coords_from_pixels((self.start_point.x(), self.start_point.y()))
