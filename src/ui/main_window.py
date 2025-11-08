@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
 
         # Connect signals
         self.image_view.annotation_added.connect(self.on_annotation_added)
+        self.image_view.annotation_changed.connect(self.annotation_view.update_annotation)
 
         # Menu Bar
         self.menu_bar = self.menuBar()
@@ -53,12 +54,38 @@ class MainWindow(QMainWindow):
         # Toolbar
         self.toolbar = QToolBar("Main Toolbar")
         self.addToolBar(self.toolbar)
+
+        self.select_tool_action = QAction("Select", self)
+        self.select_tool_action.setCheckable(True)
+        self.select_tool_action.triggered.connect(self.set_select_tool)
+        self.toolbar.addAction(self.select_tool_action)
+
         self.draw_bbox_action = QAction("Draw BBox", self)
         self.draw_bbox_action.setCheckable(True)
         self.draw_bbox_action.triggered.connect(self.set_draw_bbox_tool)
         self.toolbar.addAction(self.draw_bbox_action)
         
         logger.info("Main window initialized.")
+
+    def set_select_tool(self):
+        if self.select_tool_action.isChecked():
+            self.current_tool = "select"
+            self.draw_bbox_action.setChecked(False)
+            logger.info("Tool set to: Select")
+        else:
+            self.current_tool = None
+            logger.info("Tool unset.")
+        self.image_view.set_tool(self.current_tool)
+
+    def set_draw_bbox_tool(self):
+        if self.draw_bbox_action.isChecked():
+            self.current_tool = "bbox"
+            self.select_tool_action.setChecked(False)
+            logger.info("Tool set to: Draw BBox")
+        else:
+            self.current_tool = None
+            logger.info("Tool unset.")
+        self.image_view.set_tool(self.current_tool)
 
     def open_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Open Folder")
@@ -77,22 +104,13 @@ class MainWindow(QMainWindow):
                 logger.error(f"Error accessing folder {folder_path}: {e}")
                 QMessageBox.critical(self, "Error", f"Could not access the folder: {e}")
 
+    def on_annotation_added(self, annotation):
+        logger.info(f"New annotation added with ID: {annotation.id}")
+        self.annotation_view.add_annotation(annotation)
+
     def on_image_clicked(self, item):
         if self.current_folder:
             image_path = os.path.join(self.current_folder, item.text())
             logger.info(f"Image selected: {image_path}")
             self.image_view.set_image(image_path)
             self.annotation_view.load_annotations(self.image_view.annotations)
-
-    def set_draw_bbox_tool(self):
-        if self.draw_bbox_action.isChecked():
-            self.current_tool = "bbox"
-            logger.info("Tool set to: Draw BBox")
-        else:
-            self.current_tool = None
-            logger.info("Tool unset.")
-        self.image_view.set_tool(self.current_tool)
-
-    def on_annotation_added(self, annotation):
-        logger.info(f"New annotation added with ID: {annotation.id}")
-        self.annotation_view.add_annotation(annotation)

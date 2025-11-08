@@ -116,6 +116,24 @@ def get_annotations_for_image(conn, image_id):
         logger.error(f"Error getting annotations for image ID {image_id}: {e}")
         return []
 
+def update_annotation(conn, annotation):
+    """
+    Update an existing annotation.
+    """
+    try:
+        bbox_str = ",".join(map(str, annotation.bbox))
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE annotations SET class_id = ?, bbox = ? WHERE id = ?",
+            (annotation.class_id, bbox_str, annotation.id)
+        )
+        conn.commit()
+        logger.info(f"Updated annotation with ID: {annotation.id}")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"Error updating annotation with ID {annotation.id}: {e}")
+        return False
+
 def get_image_id_by_path(conn, image_path):
     """
     Get the ID of an image from its path.

@@ -46,3 +46,17 @@ class AnnotationView(QTableView):
         for annotation in annotations:
             self.add_annotation(annotation)
         logger.info(f"Loaded {len(annotations)} annotations into the view.")
+
+    def update_annotation(self, annotation):
+        """
+        Update a single annotation in the table.
+        """
+        for row in range(self.model.rowCount()):
+            item_id = self.model.item(row, 0)
+            if item_id and int(item_id.text()) == annotation.id:
+                bbox_str = ", ".join([f"{v:.4f}" for v in annotation.bbox])
+                self.model.item(row, 1).setText(str(annotation.class_id))
+                self.model.item(row, 2).setText(bbox_str)
+                logger.info(f"Annotation {annotation.id} updated in the view.")
+                return
+        logger.warning(f"Annotation {annotation.id} not found in the view for update.")

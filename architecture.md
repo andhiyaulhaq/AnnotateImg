@@ -19,9 +19,9 @@ The application will be designed using a modular approach to separate concerns, 
     *   Responsible for all visual elements and user interaction.
     *   **Main Window:** The main container of the application. It will have:
         *   A **Menu Bar** with "File", "Edit", and "View" menus. The "File" menu will contain an "Open Folder" action to allow users to select a directory of images.
-        *   A **Toolbar** for quick access to annotation tools like "Select" and "Draw Bounding Box".
+        *   A **Toolbar** for quick access to annotation tools like "Select" (for selecting, moving, and resizing existing bounding boxes) and "Draw Bounding Box".
     *   **Image List View (Sidebar):** A dockable widget, typically on the left, that lists all the image files (e.g., `.jpg`, `.png`) found in the currently opened folder. Clicking an image in this list will open it for annotation.
-    *   **Image View:** The central widget, implemented as a `QScrollArea`. It contains a `QLabel` that handles its own painting to display the image. This ensures the image is always scaled to fit the available viewport while maintaining its aspect ratio, preventing overflow. The `QLabel` also handles mouse events (`mousePressEvent`, `mouseMoveEvent`, `mouseReleaseEvent`) for drawing annotations.
+    *   **Image View:** The central widget, implemented as a `QScrollArea`. It contains a `QLabel` that handles its own painting to display the image. This ensures the image is always scaled to fit the available viewport while maintaining its aspect ratio, preventing overflow. The `QLabel` also handles mouse events (`mousePressEvent`, `mouseMoveEvent`, `mouseReleaseEvent`) for drawing new annotations, and for selecting, moving, and resizing existing annotations. Selected bounding boxes are highlighted with a different color and display resize handles.
     *   **Annotation View (Table):** A dockable widget that displays annotation data. The table includes the following columns:
         *   `ID`: The unique identifier of the annotation.
         *   `Class ID`: The integer representing the class of the object.
@@ -93,9 +93,18 @@ The application will be designed using a modular approach to separate concerns, 
 4.  When the user presses the mouse button on the image, `mousePressEvent` is triggered. It records the starting coordinates of the bounding box in the image's pixel coordinate system.
 5.  As the user drags the mouse, `mouseMoveEvent` is triggered continuously. This event handler draws a temporary rectangle on the `QLabel` to provide visual feedback.
 6.  When the user releases the mouse button, `mouseReleaseEvent` is triggered. It records the final pixel coordinates.
-7.  The start and end pixel coordinates are converted into a `[x, y, width, height]` format. These are then normalized based on the image's dimensions to the YOLO format: `<x_center> <y_center> <width> <height>`, where all values are floats between 0 and 1.
+7.  The start and end pixel coordinates are converted into a `[x, y, width, height]` format. These pixel coordinates are clamped to ensure they remain within the image boundaries, preserving their size during repositioning and clamping both position and size during resizing. They are then normalized based on the image's dimensions to the YOLO format: `<x_center> <y_center> <width> <height>`, where all values are floats between 0 and 1.
 8.  An `Annotation` object is created with the `image_id`, a `class_id` (e.g., 0 for the first class), and the normalized `bbox` coordinates. This object is then saved to the SQLite database via the `storage.py` module.
 9.  The `image_view` emits an `annotation_added` signal, which is connected to the `annotation_view` to update its display with the new annotation.
+
+## Workflow Example: Selecting and Modifying a Bounding Box
+
+1.  The user clicks the "Select" action in the toolbar, setting the application's state to `current_tool = 'select'`.
+2.  The user clicks on the `ImageView`. The `mousePressEvent` handler checks if the click occurred within an existing bounding box or on one of its resize handles.
+3.  If a bounding box is hit, it becomes the `selected_annotation`, and its color changes to blue (from red). If a handle is hit, the `selection_handle` is set accordingly (e.g., 'top-left', 'body').
+4.  As the user drags the mouse (`mouseMoveEvent`), the `selected_annotation` is either moved (if `selection_handle` is 'body') or resized (if a handle is selected). During resizing, the corner opposite to the dragged handle remains fixed, ensuring intuitive resizing behavior. The `bbox` coordinates of the `selected_annotation` are updated in real-time. During repositioning, the bounding box's size is preserved while its position is clamped to remain within image boundaries. During resizing, both the position and size are clamped to ensure the box stays within the image. The `ImageView` repaints to show the changes.
+5.  When the user releases the mouse button (`mouseReleaseEvent`), the dragging operation ends. The updated `bbox` coordinates of the `selected_annotation` are saved to the database via the `storage.py` module.
+6.  The `image_view` emits an `annotation_changed` signal, which is connected to the `annotation_view` to update its display with the modified annotation.
 
 ## Logging and Error Handling
 
