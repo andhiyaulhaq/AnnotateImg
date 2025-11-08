@@ -21,7 +21,7 @@ The application will be designed using a modular approach to separate concerns, 
         *   A **Menu Bar** with "File", "Edit", and "View" menus. The "File" menu will contain an "Open Folder" action to allow users to select a directory of images.
         *   A **Toolbar** for quick access to annotation tools like "Select" and "Draw Bounding Box".
     *   **Image List View (Sidebar):** A dockable widget, typically on the left, that lists all the image files (e.g., `.jpg`, `.png`) found in the currently opened folder. Clicking an image in this list will open it for annotation.
-    *   **Image View:** The central widget, implemented as a `QScrollArea`. It contains a `QLabel` which displays the image and handles mouse events (`mousePressEvent`, `mouseMoveEvent`, `mouseReleaseEvent`) for drawing annotations. The image is scaled to fit the viewport by default, maintaining its aspect ratio.
+    *   **Image View:** The central widget, implemented as a `QScrollArea`. It contains a `QLabel` that handles its own painting to display the image. This ensures the image is always scaled to fit the available viewport while maintaining its aspect ratio, preventing overflow. The `QLabel` also handles mouse events (`mousePressEvent`, `mouseMoveEvent`, `mouseReleaseEvent`) for drawing annotations.
     *   **Annotation View (Table):** A dockable widget that displays annotation data. The table includes the following columns:
         *   `ID`: The unique identifier of the annotation.
         *   `Label`: The label of the annotation (e.g., "bbox").

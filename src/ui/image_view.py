@@ -18,28 +18,32 @@ class _ImageLabel(QLabel):
         self.drawing = False
         self.start_point = QPoint()
         self.end_point = QPoint()
+        self._pixmap = None
+
+    def set_pixmap(self, pixmap):
+        self._pixmap = pixmap
+        if self._pixmap is None:
+            self.setText("Open a folder to start annotating.")
+        else:
+            self.setText("")
+        self.update()
 
     def get_image_coords(self, widget_pos):
-        if not self.pixmap():
+        if not self._pixmap:
             return None
 
-        pixmap_size = self.pixmap().size()
+        pixmap_size = self._pixmap.size()
         label_size = self.size()
 
-        # Calculate the scaled pixmap dimensions
-        scaled_pixmap = self.pixmap().scaled(label_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        scaled_size = scaled_pixmap.size()
+        scaled_size = pixmap_size.scaled(label_size, Qt.KeepAspectRatio)
 
-        # Calculate the top-left position of the scaled pixmap
         offset_x = (label_size.width() - scaled_size.width()) / 2
         offset_y = (label_size.height() - scaled_size.height()) / 2
 
-        # Check if the click is outside the image area
         if not (offset_x <= widget_pos.x() < offset_x + scaled_size.width() and
                 offset_y <= widget_pos.y() < offset_y + scaled_size.height()):
             return None
 
-        # Translate widget coordinates to image coordinates
         image_x = (widget_pos.x() - offset_x) * pixmap_size.width() / scaled_size.width()
         image_y = (widget_pos.y() - offset_y) * pixmap_size.height() / scaled_size.height()
 
@@ -98,25 +102,30 @@ class _ImageLabel(QLabel):
             self.update()
 
     def paintEvent(self, event):
-        super().paintEvent(event)
-        if not self.pixmap():
+        painter = QPainter(self)
+
+        if not self._pixmap:
+            super().paintEvent(event)
             return
 
-        painter = QPainter(self)
+        label_size = self.size()
+        pixmap_size = self._pixmap.size()
+        
+        target_size = pixmap_size.scaled(label_size, Qt.KeepAspectRatio)
+        
+        offset_x = (label_size.width() - target_size.width()) / 2
+        offset_y = (label_size.height() - target_size.height()) / 2
+        
+        target_rect = QRect(int(offset_x), int(offset_y), target_size.width(), target_size.height())
+
+        painter.drawPixmap(target_rect, self._pixmap)
+
         pen = QPen(Qt.red, 2, Qt.SolidLine)
         painter.setPen(pen)
 
-        pixmap_size = self.pixmap().size()
-        label_size = self.size()
-        
-        scaled_pixmap = self.pixmap().scaled(label_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        scaled_size = scaled_pixmap.size()
-        offset_x = (label_size.width() - scaled_size.width()) / 2
-        offset_y = (label_size.height() - scaled_size.height()) / 2
-
         def to_widget_coords(image_point):
-            x = image_point[0] * scaled_size.width() / pixmap_size.width() + offset_x
-            y = image_point[1] * scaled_size.height() / pixmap_size.height() + offset_y
+            x = image_point[0] * target_size.width() / pixmap_size.width() + offset_x
+            y = image_point[1] * target_size.height() / pixmap_size.height() + offset_y
             return QPoint(int(x), int(y))
 
         for annotation in self.parent_view.annotations:
@@ -160,16 +169,15 @@ class ImageView(QScrollArea):
         if image_path is None:
             self.current_image_path = None
             self._pixmap = None
-            self.image_label.setText("Open a folder to start annotating.")
+            self.image_label.set_pixmap(None)
             self.annotations = []
-            self.image_label.update()
             return
 
         self.current_image_path = image_path
         try:
             self._pixmap = processing.load_image_as_pixmap(image_path)
             if self._pixmap:
-                self.image_label.setPixmap(self._pixmap)
+                self.image_label.set_pixmap(self._pixmap)
                 logger.info(f"Image loaded: {image_path}")
                 self.load_annotations()
             else:
