@@ -14,7 +14,7 @@ class AnnotationView(QTableView):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.model = QStandardItemModel(self)
-        self.model.setHorizontalHeaderLabels(['ID', 'Class ID', 'Bounding Box (YOLO)'])
+        self.model.setHorizontalHeaderLabels(['ID', 'Class ID', 'X', 'Y', 'Width', 'Height'])
         self.setModel(self.model)
         logger.info("Annotation view initialized.")
 
@@ -22,12 +22,15 @@ class AnnotationView(QTableView):
         """
         Add a single annotation to the table.
         """
-        bbox_str = ", ".join([f"{v:.4f}" for v in annotation.bbox])
+        x_center, y_center, norm_w, norm_h = annotation.bbox
             
         self.model.appendRow([
             QStandardItem(str(annotation.id)),
             QStandardItem(str(annotation.class_id)),
-            QStandardItem(bbox_str),
+            QStandardItem(f"{x_center:.4f}"),
+            QStandardItem(f"{y_center:.4f}"),
+            QStandardItem(f"{norm_w:.4f}"),
+            QStandardItem(f"{norm_h:.4f}"),
         ])
         logger.info(f"Annotation {annotation.id} added to the view.")
 
@@ -54,9 +57,12 @@ class AnnotationView(QTableView):
         for row in range(self.model.rowCount()):
             item_id = self.model.item(row, 0)
             if item_id and int(item_id.text()) == annotation.id:
-                bbox_str = ", ".join([f"{v:.4f}" for v in annotation.bbox])
+                x_center, y_center, norm_w, norm_h = annotation.bbox
                 self.model.item(row, 1).setText(str(annotation.class_id))
-                self.model.item(row, 2).setText(bbox_str)
+                self.model.item(row, 2).setText(f"{x_center:.4f}")
+                self.model.item(row, 3).setText(f"{y_center:.4f}")
+                self.model.item(row, 4).setText(f"{norm_w:.4f}")
+                self.model.item(row, 5).setText(f"{norm_h:.4f}")
                 logger.info(f"Annotation {annotation.id} updated in the view.")
                 return
         logger.warning(f"Annotation {annotation.id} not found in the view for update.")

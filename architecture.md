@@ -25,7 +25,10 @@ The application will be designed using a modular approach to separate concerns, 
     *   **Annotation View (Table):** A dockable widget that displays annotation data. The table includes the following columns:
         *   `ID`: The unique identifier of the annotation.
         *   `Class ID`: The integer representing the class of the object.
-        *   `Bounding Box (YOLO)`: The normalized coordinates of the annotation's bounding box, in the format `<x_center> <y_center> <width> <height>`.
+        *   `X`: The normalized x-coordinate of the bounding box center.
+        *   `Y`: The normalized y-coordinate of the bounding box center.
+        *   `Width`: The normalized width of the bounding box.
+        *   `Height`: The normalized height of the bounding box.
     *   Handles user input events, such as mouse clicks and drags on the `ImageView` for drawing, and signals from other widgets like the toolbar or image list.
 
 2.  **Image Processing & Annotation Layer:**
