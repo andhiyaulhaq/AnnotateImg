@@ -24,8 +24,8 @@ The application will be designed using a modular approach to separate concerns, 
     *   **Image View:** The central widget, implemented as a `QScrollArea`. It contains a `QLabel` that handles its own painting to display the image. This ensures the image is always scaled to fit the available viewport while maintaining its aspect ratio, preventing overflow. The `QLabel` also handles mouse events (`mousePressEvent`, `mouseMoveEvent`, `mouseReleaseEvent`) for drawing annotations.
     *   **Annotation View (Table):** A dockable widget that displays annotation data. The table includes the following columns:
         *   `ID`: The unique identifier of the annotation.
-        *   `Label`: The label of the annotation (e.g., "bbox").
-        *   `Points`: The coordinates of the annotation's points.
+        *   `Class ID`: The integer representing the class of the object.
+        *   `Bounding Box (YOLO)`: The normalized coordinates of the annotation's bounding box, in the format `<x_center> <y_center> <width> <height>`.
     *   Handles user input events, such as mouse clicks and drags on the `ImageView` for drawing, and signals from other widgets like the toolbar or image list.
 
 2.  **Image Processing & Annotation Layer:**
@@ -38,7 +38,7 @@ The application will be designed using a modular approach to separate concerns, 
     *   Responsible for managing all annotation data.
     *   Will use an SQLite database (`annotations.db`) to store annotations for all images.
     *   This allows for persistent storage, enabling the user to move back and forth between images and view their previous annotations.
-    *   The database will store image paths, annotation coordinates, labels, and other metadata.
+    *   The database stores image paths, `class_id`, and the normalized bounding box coordinates.
     *   Handles creating, reading, updating, and deleting annotation records in the database.
 
 4.  **Application Core:**
@@ -90,11 +90,11 @@ The application will be designed using a modular approach to separate concerns, 
 1.  A `QToolBar` is added to the `main_window.py`, containing a `QAction` for "Draw Bounding Box".
 2.  The user clicks the "Draw Bounding Box" action. This sets a state in the application (e.g., `current_tool = 'bbox'`).
 3.  The `image_view.py` (specifically the `QLabel` inside it) has mouse event handlers (`mousePressEvent`, `mouseMoveEvent`, `mouseReleaseEvent`).
-4.  When the user presses the mouse button on the image, `mousePressEvent` is triggered. It records the starting coordinates of the bounding box.
-5.  As the user drags the mouse, `mouseMoveEvent` is triggered continuously. The mouse coordinates, which are relative to the widget, are transformed to the coordinate system of the original image. This ensures that the annotation is correctly placed regardless of how the image is scaled or resized in the view. This event handler draws a temporary rectangle on the `QLabel` to provide visual feedback.
-6.  When the user releases the mouse button, `mouseReleaseEvent` is triggered. It records the final coordinates, also transformed to the image's coordinate system.
-7.  The start and end coordinates are used to define the bounding box. The pixel coordinates, now correctly mapped to the image, are stored.
-8.  An `Annotation` object is created with the image_id, a default label, and the points. This object is then saved to the SQLite database via the `storage.py` module.
+4.  When the user presses the mouse button on the image, `mousePressEvent` is triggered. It records the starting coordinates of the bounding box in the image's pixel coordinate system.
+5.  As the user drags the mouse, `mouseMoveEvent` is triggered continuously. This event handler draws a temporary rectangle on the `QLabel` to provide visual feedback.
+6.  When the user releases the mouse button, `mouseReleaseEvent` is triggered. It records the final pixel coordinates.
+7.  The start and end pixel coordinates are converted into a `[x, y, width, height]` format. These are then normalized based on the image's dimensions to the YOLO format: `<x_center> <y_center> <width> <height>`, where all values are floats between 0 and 1.
+8.  An `Annotation` object is created with the `image_id`, a `class_id` (e.g., 0 for the first class), and the normalized `bbox` coordinates. This object is then saved to the SQLite database via the `storage.py` module.
 9.  The `image_view` emits an `annotation_added` signal, which is connected to the `annotation_view` to update its display with the new annotation.
 
 ## Logging and Error Handling

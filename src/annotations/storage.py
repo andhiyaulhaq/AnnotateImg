@@ -38,8 +38,8 @@ def create_tables(conn):
             CREATE TABLE IF NOT EXISTS annotations (
                 id INTEGER PRIMARY KEY,
                 image_id INTEGER NOT NULL,
-                label TEXT NOT NULL,
-                points TEXT NOT NULL,
+                class_id INTEGER NOT NULL,
+                bbox TEXT NOT NULL,
                 FOREIGN KEY (image_id) REFERENCES images (id)
             );
         """)
@@ -72,11 +72,11 @@ def create_annotation(conn, annotation):
     Create a new annotation.
     """
     try:
-        points_str = ";".join([f"{p[0]},{p[1]}" for p in annotation.points])
+        bbox_str = ",".join(map(str, annotation.bbox))
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO annotations (image_id, label, points) VALUES (?, ?, ?)",
-            (annotation.image_id, annotation.label, points_str)
+            "INSERT INTO annotations (image_id, class_id, bbox) VALUES (?, ?, ?)",
+            (annotation.image_id, annotation.class_id, bbox_str)
         )
         conn.commit()
         anno_id = cursor.lastrowid
@@ -92,26 +92,24 @@ def get_annotations_for_image(conn, image_id):
     """
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, label, points FROM annotations WHERE image_id = ?", (image_id,))
+        cursor.execute("SELECT id, class_id, bbox FROM annotations WHERE image_id = ?", (image_id,))
         annotations = []
         for row in cursor.fetchall():
-            points_str = row[2].split(';')
-            points = []
-            for p_str in points_str:
-                if p_str:
-                    try:
-                        x_str, y_str = p_str.split(',')
-                        points.append((int(x_str), int(y_str)))
-                    except ValueError:
-                        logger.warning(f"Could not parse point '{p_str}' for annotation id {row[0]}. Skipping.")
-            
-            if points:
-                annotations.append(Annotation(
-                    id=row[0],
-                    image_id=image_id,
-                    label=row[1],
-                    points=points
-                ))
+            bbox_str = row[2]
+            try:
+                bbox = [float(p) for p in bbox_str.split(',')]
+                if len(bbox) != 4:
+                     raise ValueError("Invalid number of bbox values")
+            except (ValueError, TypeError):
+                logger.warning(f"Could not parse bbox '{bbox_str}' for annotation id {row[0]}. Skipping.")
+                continue
+
+            annotations.append(Annotation(
+                id=row[0],
+                image_id=image_id,
+                class_id=row[1],
+                bbox=bbox
+            ))
         logger.info(f"Retrieved {len(annotations)} annotations for image ID: {image_id}")
         return annotations
     except sqlite3.Error as e:

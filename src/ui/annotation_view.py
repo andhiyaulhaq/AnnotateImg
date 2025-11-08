@@ -14,7 +14,7 @@ class AnnotationView(QTableView):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.model = QStandardItemModel(self)
-        self.model.setHorizontalHeaderLabels(['ID', 'Label', 'Points'])
+        self.model.setHorizontalHeaderLabels(['ID', 'Class ID', 'Bounding Box (YOLO)'])
         self.setModel(self.model)
         logger.info("Annotation view initialized.")
 
@@ -22,11 +22,12 @@ class AnnotationView(QTableView):
         """
         Add a single annotation to the table.
         """
-        points_str = "; ".join([f"({p[0]},{p[1]})" for p in annotation.points])
+        bbox_str = ", ".join([f"{v:.4f}" for v in annotation.bbox])
+            
         self.model.appendRow([
             QStandardItem(str(annotation.id)),
-            QStandardItem(annotation.label),
-            QStandardItem(points_str),
+            QStandardItem(str(annotation.class_id)),
+            QStandardItem(bbox_str),
         ])
         logger.info(f"Annotation {annotation.id} added to the view.")
 

@@ -6,9 +6,9 @@ import dataclasses
 @dataclasses.dataclass
 class Annotation:
     """
-    Represents a single annotation.
+    Represents a single annotation in YOLO format.
     """
     id: int
     image_id: int
-    label: str
-    points: list[tuple[int, int]]
+    class_id: int
+    bbox: list[float]

@@ -73,31 +73,42 @@ class _ImageLabel(QLabel):
             if image_pos:
                 self.end_point = image_pos
             logger.debug(f"Mouse release: stop drawing at {self.end_point}")
-            
-            points = [(self.start_point.x(), self.start_point.y()), (self.end_point.x(), self.end_point.y())]
-            
-            if self.parent_view.current_image_path:
-                try:
-                    conn = storage.create_connection("annotations.db")
-                    if conn:
-                        image_id = storage.get_or_create_image(conn, self.parent_view.current_image_path)
-                        if image_id is None:
-                            raise ConnectionError("Failed to get or create image record.")
 
-                        new_annotation = Annotation(id=None, image_id=image_id, label="bbox", points=points)
-                        anno_id = storage.create_annotation(conn, new_annotation)
-                        if anno_id is None:
-                            raise ConnectionError("Failed to create annotation record.")
+            rect = QRect(self.start_point, self.end_point).normalized()
+            
+            if self._pixmap:
+                img_w = self._pixmap.width()
+                img_h = self._pixmap.height()
+
+                x_center = (rect.x() + rect.width() / 2) / img_w
+                y_center = (rect.y() + rect.height() / 2) / img_h
+                norm_w = rect.width() / img_w
+                norm_h = rect.height() / img_h
+                
+                bbox = [x_center, y_center, norm_w, norm_h]
+
+                if self.parent_view.current_image_path:
+                    try:
+                        conn = storage.create_connection("annotations.db")
+                        if conn:
+                            image_id = storage.get_or_create_image(conn, self.parent_view.current_image_path)
+                            if image_id is None:
+                                raise ConnectionError("Failed to get or create image record.")
+
+                            new_annotation = Annotation(id=None, image_id=image_id, class_id=0, bbox=bbox)
+                            anno_id = storage.create_annotation(conn, new_annotation)
+                            if anno_id is None:
+                                raise ConnectionError("Failed to create annotation record.")
+                                
+                            new_annotation.id = anno_id
                             
-                        new_annotation.id = anno_id
-                        
-                        self.parent_view.annotations.append(new_annotation)
-                        self.parent_view.annotation_added.emit(new_annotation)
-                        
-                        conn.close()
-                except Exception as e:
-                    logger.error(f"Error saving annotation: {e}")
-                    QMessageBox.critical(self.parent_view, "Error", f"Could not save the annotation: {e}")
+                            self.parent_view.annotations.append(new_annotation)
+                            self.parent_view.annotation_added.emit(new_annotation)
+                            
+                            conn.close()
+                    except Exception as e:
+                        logger.error(f"Error saving annotation: {e}")
+                        QMessageBox.critical(self.parent_view, "Error", f"Could not save the annotation: {e}")
 
             self.update()
 
@@ -123,20 +134,29 @@ class _ImageLabel(QLabel):
         pen = QPen(Qt.red, 2, Qt.SolidLine)
         painter.setPen(pen)
 
-        def to_widget_coords(image_point):
-            x = image_point[0] * target_size.width() / pixmap_size.width() + offset_x
-            y = image_point[1] * target_size.height() / pixmap_size.height() + offset_y
-            return QPoint(int(x), int(y))
+        img_w = self._pixmap.width()
+        img_h = self._pixmap.height()
+
+        def to_widget_coords_from_pixels(image_point_tuple):
+            px = image_point_tuple[0] * target_size.width() / pixmap_size.width() + offset_x
+            py = image_point_tuple[1] * target_size.height() / pixmap_size.height() + offset_y
+            return QPoint(int(px), int(py))
 
         for annotation in self.parent_view.annotations:
-            if len(annotation.points) == 2:
-                p1 = to_widget_coords(annotation.points[0])
-                p2 = to_widget_coords(annotation.points[1])
-                painter.drawRect(QRect(p1, p2))
+            x_center, y_center, norm_w, norm_h = annotation.bbox
+            
+            w = norm_w * img_w
+            h = norm_h * img_h
+            x = x_center * img_w - w / 2
+            y = y_center * img_h - h / 2
+
+            p1 = to_widget_coords_from_pixels((x, y))
+            p2 = to_widget_coords_from_pixels((x + w, y + h))
+            painter.drawRect(QRect(p1, p2))
 
         if self.drawing:
-            p1 = to_widget_coords((self.start_point.x(), self.start_point.y()))
-            p2 = to_widget_coords((self.end_point.x(), self.end_point.y()))
+            p1 = to_widget_coords_from_pixels((self.start_point.x(), self.start_point.y()))
+            p2 = to_widget_coords_from_pixels((self.end_point.x(), self.end_point.y()))
             rect = QRect(p1, p2)
             painter.drawRect(rect)
 
