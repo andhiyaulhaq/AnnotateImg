@@ -2,7 +2,7 @@
 Widget for displaying the image.
 """
 import logging
-from PySide6.QtWidgets import QScrollArea, QLabel, QMessageBox
+from PySide6.QtWidgets import QScrollArea, QLabel, QMessageBox, QInputDialog
 from PySide6.QtCore import Qt, QRect, QPoint, Signal, QRectF, QPointF
 from PySide6.QtGui import QPainter, QPen, QColor
 from ..image import processing
@@ -270,35 +270,40 @@ class _ImageLabel(QLabel):
                 norm_coords = self._pixel_to_norm_rect(rect_f, img_w, img_h)
 
                 if self.parent_view.current_image_path:
-                    try:
-                        conn = storage.create_connection("annotations.db")
-                        if conn:
-                            image_id = storage.get_or_create_image(conn, self.parent_view.current_image_path)
-                            if image_id is None:
-                                raise ConnectionError("Failed to get or create image record.")
+                    # Prompt user for class ID
+                    class_id, ok = QInputDialog.getInt(self, "Class ID", "Enter Class ID:", 0, 0, 1000, 1)
+                    if ok:
+                        try:
+                            conn = storage.create_connection("annotations.db")
+                            if conn:
+                                image_id = storage.get_or_create_image(conn, self.parent_view.current_image_path)
+                                if image_id is None:
+                                    raise ConnectionError("Failed to get or create image record.")
 
-                            new_annotation = Annotation(
-                                id=None, 
-                                image_id=image_id, 
-                                class_id=0, 
-                                x1=norm_coords[0], 
-                                y1=norm_coords[1], 
-                                x2=norm_coords[2], 
-                                y2=norm_coords[3]
-                            )
-                            anno_id = storage.create_annotation(conn, new_annotation)
-                            if anno_id is None:
-                                raise ConnectionError("Failed to create annotation record.")
+                                new_annotation = Annotation(
+                                    id=None, 
+                                    image_id=image_id, 
+                                    class_id=class_id, 
+                                    x1=norm_coords[0], 
+                                    y1=norm_coords[1], 
+                                    x2=norm_coords[2], 
+                                    y2=norm_coords[3]
+                                )
+                                anno_id = storage.create_annotation(conn, new_annotation)
+                                if anno_id is None:
+                                    raise ConnectionError("Failed to create annotation record.")
+                                    
+                                new_annotation.id = anno_id
                                 
-                            new_annotation.id = anno_id
-                            
-                            self.parent_view.annotations.append(new_annotation)
-                            self.parent_view.annotation_added.emit(new_annotation)
-                            
-                            conn.close()
-                    except Exception as e:
-                        logger.error(f"Error saving annotation: {e}")
-                        QMessageBox.critical(self.parent_view, "Error", f"Could not save the annotation: {e}")
+                                self.parent_view.annotations.append(new_annotation)
+                                self.parent_view.annotation_added.emit(new_annotation)
+                                
+                                conn.close()
+                        except Exception as e:
+                            logger.error(f"Error saving annotation: {e}")
+                            QMessageBox.critical(self.parent_view, "Error", f"Could not save the annotation: {e}")
+                    else:
+                        logger.info("Annotation creation cancelled by user.")
 
             self.update()
         elif self.dragging and self.selected_annotation:

@@ -97,8 +97,9 @@ The application will be designed using a modular approach to separate concerns, 
 5.  As the user drags the mouse, `mouseMoveEvent` is triggered continuously. This event handler draws a temporary rectangle on the `QLabel` to provide visual feedback.
 6.  When the user releases the mouse button, `mouseReleaseEvent` is triggered. It records the final pixel coordinates.
 7.  The start and end pixel coordinates are converted into an `[x1, y1, x2, y2]` format, representing the top-left and bottom-right corners. These pixel coordinates are handled with floating-point precision using `QPointF` and `QRectF` and are clamped to ensure they remain within the image boundaries, preserving their size during repositioning and clamping both position and size during resizing. They are then normalized based on the image's dimensions to the format: `<x1> <y1> <x2> <y2>`, where all values are floats between 0 and 1.
-8.  An `Annotation` object is created with the `image_id`, a `class_id` (e.g., 0 for the first class), and the normalized `bbox` coordinates. This object is then saved to the SQLite database via the `storage.py` module.
-9.  The `image_view` emits an `annotation_added` signal, which is connected to the `annotation_view` to update its display with the new annotation.
+8.  A dialog box (`QInputDialog`) prompts the user to enter a `class_id` for the new bounding box.
+9.  An `Annotation` object is created with the `image_id`, the provided `class_id`, and the normalized `x1, y1, x2, y2` coordinates. This object is then saved to the SQLite database via the `storage.py` module. If the user cancels the dialog or provides invalid input, the annotation creation is aborted.
+10. The `image_view` emits an `annotation_added` signal, which is connected to the `annotation_view` to update its display with the new annotation.
 
 ## Workflow Example: Selecting and Modifying a Bounding Box
 
