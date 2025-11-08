@@ -141,3 +141,17 @@ def get_image_id_by_path(conn, image_path):
     except sqlite3.Error as e:
         logger.error(f"Error getting image ID for path {image_path}: {e}")
         return None
+
+def delete_annotation(conn, annotation_id):
+    """
+    Delete an annotation by its ID.
+    """
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM annotations WHERE id = ?", (annotation_id,))
+        conn.commit()
+        logger.info(f"Deleted annotation with ID: {annotation_id}")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"Error deleting annotation with ID {annotation_id}: {e}")
+        return False

@@ -42,6 +42,7 @@ class MainWindow(QMainWindow):
         # Connect signals
         self.image_view.annotation_added.connect(self.on_annotation_added)
         self.image_view.annotation_changed.connect(self.annotation_view.update_annotation)
+        self.image_view.annotation_deleted.connect(self.annotation_view.remove_annotation)
 
         # Menu Bar
         self.menu_bar = self.menuBar()

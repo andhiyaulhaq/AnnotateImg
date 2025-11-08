@@ -94,7 +94,7 @@ The application will be designed using a modular approach to separate concerns, 
 2.  The user clicks the "Draw Bounding Box" action. This sets a state in the application (e.g., `current_tool = 'bbox'`).
 3.  The `image_view.py` (specifically the `QLabel` inside it) has mouse event handlers (`mousePressEvent`, `mouseMoveEvent`, `mouseReleaseEvent`).
 4.  When the user presses the mouse button on the image, `mousePressEvent` is triggered. It records the starting coordinates of the bounding box in the image's pixel coordinate system.
-5.  As the user drags the mouse, `mouseMoveEvent` is triggered continuously. This event handler draws a temporary rectangle on the `QLabel` to provide visual feedback.
+5.  As the user drags the mouse, `mouseMoveEvent` is triggered continuously. This event handler draws a temporary rectangle on the `QLabel` using the `UNSELECTED_COLOR` (red) to provide visual feedback.
 6.  When the user releases the mouse button, `mouseReleaseEvent` is triggered. It records the final pixel coordinates.
 7.  The start and end pixel coordinates are converted into an `[x1, y1, x2, y2]` format, representing the top-left and bottom-right corners. These pixel coordinates are handled with floating-point precision using `QPointF` and `QRectF` and are clamped to ensure they remain within the image boundaries, preserving their size during repositioning and clamping both position and size during resizing. They are then normalized based on the image's dimensions to the format: `<x1> <y1> <x2> <y2>`, where all values are floats between 0 and 1.
 8.  A dialog box (`QInputDialog`) prompts the user to enter a `class_id` for the new bounding box.
@@ -113,9 +113,18 @@ The application will be designed using a modular approach to separate concerns, 
 5.  When the user releases the mouse button (`mouseReleaseEvent`), the dragging operation ends. The updated `bbox` coordinates of the `selected_annotation` are saved to the database via the `storage.py` module.
 6.  The `image_view` emits an `annotation_changed` signal, which is connected to the `annotation_view` to update its display with the modified annotation.
 
-## Logging and Error Handling
+## Workflow Example: Deleting a Bounding Box
 
-To ensure robustness and maintainability, the application implements comprehensive logging and error handling.
+1.  The user selects an existing bounding box in the `ImageView`.
+2.  The user presses the "Delete" key on the keyboard.
+3.  The `keyPressEvent` handler in `_ImageLabel` detects the "Delete" key press.
+4.  It checks if a `selected_annotation` exists.
+5.  If an annotation is selected, it attempts to delete the annotation from the SQLite database via the `storage.py` module.
+6.  Upon successful deletion from the database, the annotation is removed from the `self.parent_view.annotations` list.
+7.  The `ImageView` emits an `annotation_deleted` signal, which is connected to the `annotation_view` to update its display by removing the deleted annotation.
+8.  The `selected_annotation` is set to `None`, and the `ImageView` repaints to reflect the changes.
+
+## Logging and Error Handling
 
 *   **Logging:**
     *   The application uses Python's built-in `logging` module.

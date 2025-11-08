@@ -31,6 +31,7 @@ class _ImageLabel(QLabel):
         self.dragging = False
         self.last_mouse_pos = QPointF()
         self.setMouseTracking(True) # Enable mouse tracking
+        self.setFocusPolicy(Qt.StrongFocus) # Enable keyboard events
 
     def set_pixmap(self, pixmap):
         self._pixmap = pixmap
@@ -253,6 +254,27 @@ class _ImageLabel(QLabel):
     def leaveEvent(self, event):
         self.unsetCursor() # Reset cursor when mouse leaves the widget
 
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Delete and self.selected_annotation:
+            deleted_annotation_id = self.selected_annotation.id # Store ID before clearing selected_annotation
+            logger.debug(f"Delete key pressed for annotation ID: {deleted_annotation_id}")
+            try:
+                conn = storage.create_connection("annotations.db")
+                if conn:
+                    if storage.delete_annotation(conn, deleted_annotation_id):
+                        self.parent_view.annotations.remove(self.selected_annotation)
+                        self.parent_view.annotation_deleted.emit(self.selected_annotation)
+                        self.selected_annotation = None # Deselect after deletion
+                        self.update()
+                        logger.info(f"Annotation ID {deleted_annotation_id} deleted successfully.")
+                    else:
+                        QMessageBox.critical(self.parent_view, "Error", "Failed to delete annotation from database.")
+                    conn.close()
+            except Exception as e:
+                logger.error(f"Error deleting annotation: {e}")
+                QMessageBox.critical(self.parent_view, "Error", f"Could not delete the annotation: {e}")
+        super().keyPressEvent(event)
+
     def mouseReleaseEvent(self, event):
         mouse_pos_img_coords = self.get_image_coords(event.pos())
         if not mouse_pos_img_coords:
@@ -397,7 +419,7 @@ class _ImageLabel(QLabel):
             p1 = to_widget_coords_from_pixels((self.start_point.x(), self.start_point.y()))
             p2 = to_widget_coords_from_pixels((self.end_point.x(), self.end_point.y()))
             rect_f = QRectF(p1, p2)
-            painter.setPen(QPen(Qt.red, 2, Qt.SolidLine))
+            painter.setPen(QPen(UNSELECTED_COLOR, 2, Qt.SolidLine))
             painter.drawRect(rect_f)
 
 class ImageView(QScrollArea):
@@ -406,6 +428,7 @@ class ImageView(QScrollArea):
     """
     annotation_added = Signal(object)
     annotation_changed = Signal(object) # New signal
+    annotation_deleted = Signal(object) # New signal
 
     def __init__(self, parent=None):
         super().__init__(parent)

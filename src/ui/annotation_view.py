@@ -63,3 +63,15 @@ class AnnotationView(QTableView):
                 logger.info(f"Annotation {annotation.id} updated in the view.")
                 return
         logger.warning(f"Annotation {annotation.id} not found in the view for update.")
+
+    def remove_annotation(self, annotation):
+        """
+        Remove a single annotation from the table.
+        """
+        for row in range(self.model.rowCount()):
+            item_id = self.model.item(row, 0)
+            if item_id and int(item_id.text()) == annotation.id:
+                self.model.removeRow(row)
+                logger.info(f"Annotation {annotation.id} removed from the view.")
+                return
+        logger.warning(f"Annotation {annotation.id} not found in the view for removal.")
