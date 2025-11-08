@@ -192,6 +192,7 @@ class _ImageLabel(QLabel):
             
             self.selected_annotation.bbox = self._pixel_rect_to_yolo(new_pixel_rect, img_w, img_h)
             self.last_mouse_pos = mouse_pos_img_coords
+            self.parent_view.annotation_changed.emit(self.selected_annotation) # Emit signal for real-time update
             self.update()
 
     def mouseReleaseEvent(self, event):
