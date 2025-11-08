@@ -19,6 +19,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Image Annotator")
+        self.showMaximized() # Maximize window by default
         self.current_folder = None
         self.current_tool = None
 
@@ -30,6 +31,7 @@ class MainWindow(QMainWindow):
         self.image_list_dock = QDockWidget("Images", self)
         self.image_list_view = ImageListView()
         self.image_list_dock.setWidget(self.image_list_view)
+        self.image_list_dock.setMinimumWidth(300)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.image_list_dock)
         self.image_list_view.itemClicked.connect(self.on_image_clicked)
 
@@ -37,6 +39,7 @@ class MainWindow(QMainWindow):
         self.annotation_dock = QDockWidget("Annotations", self)
         self.annotation_view = AnnotationView()
         self.annotation_dock.setWidget(self.annotation_view)
+        self.annotation_dock.setMinimumWidth(600) 
         self.addDockWidget(Qt.RightDockWidgetArea, self.annotation_dock)
 
         # Connect signals
