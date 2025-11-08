@@ -25,7 +25,8 @@ class _ImageLabel(QLabel):
         self.selected_annotation = None
         self.selection_handle = None # 'body', 'top-left', 'top-right', 'bottom-left', 'bottom-right'
         self.dragging = False
-        self.last_mouse_pos = QPoint()
+        self.last_mouse_pos = QPointF()
+        self.setMouseTracking(True) # Enable mouse tracking
 
     def set_pixmap(self, pixmap):
         self._pixmap = pixmap
@@ -146,6 +147,7 @@ class _ImageLabel(QLabel):
     def mouseMoveEvent(self, event):
         mouse_pos_img_coords = self.get_image_coords(event.pos())
         if not mouse_pos_img_coords:
+            self.unsetCursor() # Reset cursor if outside image area
             return
 
         if self.drawing:
@@ -207,6 +209,23 @@ class _ImageLabel(QLabel):
             self.last_mouse_pos = mouse_pos_img_coords
             self.parent_view.annotation_changed.emit(self.selected_annotation) # Emit signal for real-time update
             self.update()
+        else: # Not dragging, just hovering
+            if self.parent_view.tool == "select":
+                annotation, handle = self._hit_test(mouse_pos_img_coords)
+                if annotation:
+                    if handle == 'body':
+                        self.setCursor(Qt.SizeAllCursor)
+                    elif handle == 'top-left' or handle == 'bottom-right':
+                        self.setCursor(Qt.SizeFDiagCursor)
+                    elif handle == 'top-right' or handle == 'bottom-left':
+                        self.setCursor(Qt.SizeBDiagCursor)
+                else:
+                    self.unsetCursor()
+            else:
+                self.unsetCursor()
+
+    def leaveEvent(self, event):
+        self.unsetCursor() # Reset cursor when mouse leaves the widget
 
     def mouseReleaseEvent(self, event):
         mouse_pos_img_coords = self.get_image_coords(event.pos())
