@@ -43,6 +43,8 @@ class MainWindow(QMainWindow):
         self.image_view.annotation_added.connect(self.on_annotation_added)
         self.image_view.annotation_changed.connect(self.annotation_view.update_annotation)
         self.image_view.annotation_deleted.connect(self.annotation_view.remove_annotation)
+        self.annotation_view.annotation_selected_from_table.connect(self.image_view.select_annotation_from_table)
+        self.image_view.annotation_selected_on_image.connect(self.annotation_view.select_annotation_in_table)
 
         # Menu Bar
         self.menu_bar = self.menuBar()
@@ -77,6 +79,10 @@ class MainWindow(QMainWindow):
             self.current_tool = None
             logger.info("Tool unset.")
         self.image_view.set_tool(self.current_tool)
+        # Explicitly deselect any annotation when changing tools
+        self.image_view.image_label.selected_annotation = None
+        self.image_view.image_label.update()
+        self.image_view.annotation_selected_on_image.emit(None) # Emit None to deselect in table
 
     def set_draw_bbox_tool(self):
         if self.draw_bbox_action.isChecked():
@@ -87,6 +93,10 @@ class MainWindow(QMainWindow):
             self.current_tool = None
             logger.info("Tool unset.")
         self.image_view.set_tool(self.current_tool)
+        # Explicitly deselect any annotation when changing tools
+        self.image_view.image_label.selected_annotation = None
+        self.image_view.image_label.update()
+        self.image_view.annotation_selected_on_image.emit(None) # Emit None to deselect in table
 
     def open_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Open Folder")

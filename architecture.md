@@ -29,7 +29,7 @@ The application will be designed using a modular approach to separate concerns, 
         *   `Y1`: The normalized y-coordinate of the top-left corner of the bounding box.
         *   `X2`: The normalized x-coordinate of the bottom-right corner of the bounding box.
         *   `Y2`: The normalized y-coordinate of the bottom-right corner of the bounding box.
-    *   Handles user input events, such as mouse clicks and drags on the `ImageView` for drawing, and signals from other widgets like the toolbar or image list.
+    *   Handles user input events, such as mouse clicks and drags on the `ImageView` for drawing, and signals from other widgets like the toolbar or image list. Clicking a row in this table selects the corresponding bounding box in the `ImageView`, and conversely, selecting a bounding box in the `ImageView` highlights its corresponding row in the table.
 
 2.  **Image Processing & Annotation Layer:**
     *   Uses OpenCV and NumPy for image manipulation.
@@ -91,7 +91,7 @@ The application will be designed using a modular approach to separate concerns, 
 ## Workflow Example: Drawing a Bounding Box
 
 1.  A `QToolBar` is added to the `main_window.py`, containing a `QAction` for "Draw Bounding Box".
-2.  The user clicks the "Draw Bounding Box" action. This sets a state in the application (e.g., `current_tool = 'bbox'`).
+2.  The user clicks the "Draw Bounding Box" action. This sets a state in the application (e.g., `current_tool = 'bbox'`). Any currently selected annotation in the `ImageView` and highlighted row in the `AnnotationView` are deselected.
 3.  The `image_view.py` (specifically the `QLabel` inside it) has mouse event handlers (`mousePressEvent`, `mouseMoveEvent`, `mouseReleaseEvent`).
 4.  When the user presses the mouse button on the image, `mousePressEvent` is triggered. It records the starting coordinates of the bounding box in the image's pixel coordinate system.
 5.  As the user drags the mouse, `mouseMoveEvent` is triggered continuously. This event handler draws a temporary rectangle on the `QLabel` using the `UNSELECTED_COLOR` (red) to provide visual feedback.
@@ -103,7 +103,7 @@ The application will be designed using a modular approach to separate concerns, 
 
 ## Workflow Example: Selecting and Modifying a Bounding Box
 
-1.  The user clicks the "Select" action in the toolbar, setting the application's state to `current_tool = 'select'`.
+1.  The user clicks the "Select" action in the toolbar, setting the application's state to `current_tool = 'select'`. Any currently selected annotation in the `ImageView` and highlighted row in the `AnnotationView` are deselected.
 2.  The user clicks on the `ImageView`. The `mousePressEvent` handler checks if the click occurred within an existing bounding box or on one of its resize handles.
 3.  If a bounding box is hit, it becomes the `selected_annotation`, and its color changes to blue (from red). If a handle is hit, the `selection_handle` is set accordingly (e.g., 'top-left', 'body').
 4.  As the user drags the mouse (`mouseMoveEvent`), the `selected_annotation` is either moved (if `selection_handle` is 'body') or resized (if a handle is selected). All coordinate calculations are performed with floating-point precision using `QPointF` and `QRectF`.
@@ -123,6 +123,17 @@ The application will be designed using a modular approach to separate concerns, 
 6.  Upon successful deletion from the database, the annotation is removed from the `self.parent_view.annotations` list.
 7.  The `ImageView` emits an `annotation_deleted` signal, which is connected to the `annotation_view` to update its display by removing the deleted annotation.
 8.  The `selected_annotation` is set to `None`, and the `ImageView` repaints to reflect the changes.
+
+## Workflow Example: Selecting a Bounding Box from the Table
+
+1.  The user clicks on a row in the `AnnotationView` table.
+2.  The `_on_table_clicked` slot in `AnnotationView` is triggered, which retrieves the `Annotation` object associated with the clicked row.
+3.  `AnnotationView` emits an `annotation_selected_from_table` signal, passing the `Annotation` object.
+4.  `MainWindow` receives this signal and connects it to the `select_annotation_from_table` slot in `ImageView`.
+5.  The `select_annotation_from_table` slot in `ImageView` sets the received `Annotation` object as `self.image_label.selected_annotation` and triggers a repaint of the `ImageView`, highlighting the corresponding bounding box.
+6.  Conversely, when a bounding box is selected in the `ImageView` (either by mouse click or table selection), `ImageView` emits an `annotation_selected_on_image` signal.
+7.  `MainWindow` connects this signal to the `select_annotation_in_table` slot in `AnnotationView`.
+8.  The `select_annotation_in_table` slot in `AnnotationView` receives the `Annotation` object and highlights the corresponding row in the table, ensuring visual synchronization between the image and the table.
 
 ## Logging and Error Handling
 

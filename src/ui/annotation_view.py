@@ -4,6 +4,7 @@ Widget for displaying annotation data in a table.
 import logging
 from PySide6.QtWidgets import QTableView
 from PySide6.QtGui import QStandardItemModel, QStandardItem
+from PySide6.QtCore import Signal, Qt # Import Qt for UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -11,19 +12,35 @@ class AnnotationView(QTableView):
     """
     Widget to display annotation data.
     """
+    annotation_selected_from_table = Signal(object) # New signal
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.model = QStandardItemModel(self)
         self.model.setHorizontalHeaderLabels(['ID', 'Class ID', 'X1', 'Y1', 'X2', 'Y2'])
         self.setModel(self.model)
+        self.clicked.connect(self._on_table_clicked) # Connect table click to handler
         logger.info("Annotation view initialized.")
+
+    def _on_table_clicked(self, index):
+        """
+        Handle a click on the table.
+        """
+        item = self.model.item(index.row(), 0) # Get the ID item
+        if item:
+            annotation = item.data(Qt.UserRole) # Retrieve the Annotation object
+            if annotation:
+                self.annotation_selected_from_table.emit(annotation)
+                logger.debug(f"Annotation ID {annotation.id} selected from table.")
 
     def add_annotation(self, annotation):
         """
         Add a single annotation to the table.
         """
+        id_item = QStandardItem(str(annotation.id))
+        id_item.setData(annotation, Qt.UserRole) # Store the full annotation object
         self.model.appendRow([
-            QStandardItem(str(annotation.id)),
+            id_item,
             QStandardItem(str(annotation.class_id)),
             QStandardItem(f"{annotation.x1:.4f}"),
             QStandardItem(f"{annotation.y1:.4f}"),
@@ -75,3 +92,22 @@ class AnnotationView(QTableView):
                 logger.info(f"Annotation {annotation.id} removed from the view.")
                 return
         logger.warning(f"Annotation {annotation.id} not found in the view for removal.")
+
+    def select_annotation_in_table(self, annotation):
+        """
+        Selects the row corresponding to the given annotation in the table.
+        If annotation is None, clears the selection.
+        """
+        self.clearSelection() # Clear previous selection
+
+        if annotation is None:
+            logger.debug("Annotation deselected in image view, clearing table selection.")
+            return
+
+        for row in range(self.model.rowCount()):
+            item_id = self.model.item(row, 0)
+            if item_id and int(item_id.text()) == annotation.id:
+                self.selectRow(row)
+                logger.debug(f"Annotation ID {annotation.id} selected in table.")
+                return
+        logger.warning(f"Annotation {annotation.id} not found in table for selection.")

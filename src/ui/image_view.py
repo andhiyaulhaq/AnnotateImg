@@ -154,9 +154,11 @@ class _ImageLabel(QLabel):
                 self.dragging = True
                 self.last_mouse_pos = mouse_pos_img_coords
                 logger.debug(f"Selected annotation ID: {self.selected_annotation.id}, handle: {self.selection_handle}")
+                self.parent_view.annotation_selected_on_image.emit(self.selected_annotation)
             else:
                 self.selected_annotation = None # Clicked outside, deselect
                 logger.debug("Deselected annotation.")
+                self.parent_view.annotation_selected_on_image.emit(None) # Emit None for deselection
             self.update()
 
     def mouseMoveEvent(self, event):
@@ -429,6 +431,7 @@ class ImageView(QScrollArea):
     annotation_added = Signal(object)
     annotation_changed = Signal(object) # New signal
     annotation_deleted = Signal(object) # New signal
+    annotation_selected_on_image = Signal(object) # New signal
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -500,3 +503,12 @@ class ImageView(QScrollArea):
         Handle resize events to scale the image.
         """
         super().resizeEvent(event)
+
+    def select_annotation_from_table(self, annotation):
+        """
+        Select an annotation based on a selection from the table.
+        """
+        self.image_label.selected_annotation = annotation
+        self.image_label.update()
+        logger.debug(f"Annotation ID {annotation.id} selected from table.")
+        self.annotation_selected_on_image.emit(annotation)
